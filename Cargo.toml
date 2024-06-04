@@ -1,0 +1,27 @@
+[package]
+name = "ord-canister"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+candid = "0.9"
+ic-cdk = "0.11"
+ic-cdk-macros = "0.8"
+ic-cdk-timers = "0.5"
+ic-stable-memory = "0.4"
+ic-stable-memory-derive = "0.4"
+ic-ledger-types = "0.8"
+icrc-ledger-types = "0.1.4"
+serde = { version = "1.0", features = ["derive"] }
+syn = "1.0"
+anyhow =  "1"
+thiserror = "1"
+generic-array = "0.14"
+cfg-if = "1.0"
+hex = "0.4"
+
+
+bitcoin = { version = "0.32.0" }
+bitcoincore_rpc_json = { version = "0.19.0", default-features = false }
+bip39 = "2.0.0"
+ordinals = { version = "0.0.8" }
