@@ -1,6 +1,8 @@
 mod rune_updater;
 
-use crate::{index::rune_updater::RuneUpdater, *};
+use self::rune_updater::RuneUpdater;
+use crate::*;
+use std::collections::HashMap;
 
 pub(crate) struct BlockData {
   pub(crate) header: Header,
@@ -34,6 +36,8 @@ pub(crate) async fn index_block(height: u32, block: BlockData) {
   let mut updater = RuneUpdater {
     block_time: block.header.time,
     burned: HashMap::new(),
+    // TODO
+    event_handler: None,
     height,
     minimum: Rune::minimum_at_height(index.settings.chain().network(), Height(height)),
   };

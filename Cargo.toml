@@ -3,6 +3,9 @@ name = "ord-canister"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = [".", "crates/*"]
+
 [dependencies]
 candid = "0.9"
 ic-cdk = "0.11"
@@ -13,6 +16,7 @@ ic-stable-memory-derive = "0.4"
 ic-ledger-types = "0.8"
 icrc-ledger-types = "0.1.4"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
 syn = "1.0"
 anyhow =  "1"
 thiserror = "1"
@@ -21,7 +25,8 @@ cfg-if = "1.0"
 hex = "0.4"
 
 
-bitcoin = { version = "0.32.0" }
-bitcoincore_rpc_json = { version = "0.19.0", default-features = false }
+bitcoin = { version = "0.32.0", default-features = false, features = ["serde"] }
+# bitcoin = { version = "0.28.2", default-features = false, features = ["use-serde", "no-std"] }
+bitcoincore-rpc-json = { version = "0.19.0", default-features = false }
 bip39 = "2.0.0"
-ordinals = { version = "0.0.8" }
+ordinals = { path = "./crates/ordinals" }

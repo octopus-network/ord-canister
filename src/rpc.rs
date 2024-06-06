@@ -1,17 +1,18 @@
 use ic_cdk::api::management_canister::http_request::*;
+use crate::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
 pub use bitcoincore_rpc_json::*;
 
 #[derive(Debug, Error)]
-pub enum RpcError<'a, 'b> {
+pub enum RpcError {
   #[error("IO error occured while calling {0} onto {1} due to {2}.")]
-  Io(&'static str, Cow<'a, str>, Cow<'b, str>),
+  Io(&'static str, String, String),
   #[error("Decoding response of {0} from {1} failed due to {2}.")]
-  Decode(&'static str, Cow<'a, str>, Cow<'b, str>),
+  Decode(&'static str, String, String),
   #[error("Received an error of endpoint {0} from {1}: {2}.")]
-  Endpoint(&'static str, Cow<'a, str>, Cow<'b, str>),
+  Endpoint(&'static str, String, String),
 }
 
 #[derive(Serialize, Debug)]
@@ -80,17 +81,21 @@ where
   if reply.error.is_some() {
     return Err(RpcError::Endpoint(
       endpoint,
-      url,
+      url.to_string(),
       reply.error.map(|e| e.message).unwrap(),
     ));
   }
   match reply.result {
     Some(result) => Ok(decoder(result).ok_or(RpcError::Decode(
       endpoint,
-      url,
+      url.to_string(),
       "Decoding failed".to_string(),
     ))?),
-    _ => Err(RpcError::Decode(endpoint, url, "No result".to_string())),
+    _ => Err(RpcError::Decode(
+      endpoint,
+      url.to_string(),
+      "No result".to_string(),
+    )),
   }
 }
 
@@ -98,17 +103,17 @@ where
 const URL: &'static str = "http://localhost:8332";
 
 pub(crate) async fn get_block_hash(height: u64) -> Result<BlockHash, RpcError> {
-  make_rpc(URL, "getblockhash", serde_json::json!([height])).await
+  make_rpc::<BlockHash>(URL, "getblockhash", serde_json::json!([height])).await
 }
 
-pub(crate) async fn get_block_header(hash: BlockHash) -> Result<BlockHeader, RpcError> {
-  make_rpc(
-    URL,
-    "getblockheader",
-    serde_json::json!([format!("{:x}", hash), true]),
-  )
-  .await
-}
+// pub(crate) async fn get_block_header(hash: BlockHash) -> Result<BlockHeader, RpcError> {
+//   make_rpc<BlockHeader>(
+//     URL,
+//     "getblockheader",
+//     serde_json::json!([format!("{:x}", hash), true]),
+//   )
+//   .await
+// }
 
 pub(crate) async fn get_block(hash: BlockHash) -> Result<Block, RpcError> {
   let hex: String = make_rpc(
@@ -117,5 +122,6 @@ pub(crate) async fn get_block(hash: BlockHash) -> Result<Block, RpcError> {
     serde_json::json!([format!("{:x}", hash), 0]),
   )
   .await?;
-  consensus::encode::deserialize_hex(&hex).map_err(|e| RpcError::Decode("getblock", URL, e))
+  consensus::encode::deserialize_hex(&hex)
+    .map_err(|e| RpcError::Decode("getblock", URL.to_string(), e))
 }

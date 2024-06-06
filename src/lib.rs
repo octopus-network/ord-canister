@@ -1,6 +1,7 @@
 mod index;
 mod rpc;
 
+use self::index::entry::{OutPointValue, TxidValue};
 pub use bitcoin::{
   address::{Address, NetworkUnchecked},
   block::Header,
@@ -15,6 +16,7 @@ pub use bitcoin::{
   Txid, Witness,
 };
 use ic_stable_memory::collections::{SHashMap, SVec};
+use index::entry::{RuneBalance, RuneEntry};
 pub use ordinals::{
   varint, Artifact, Charm, Edict, Epoch, Etching, Height, Pile, Rarity, Rune, RuneId, Runestone,
   Sat, SatPoint, SpacedRune, Terms,
@@ -39,10 +41,10 @@ thread_local! {
     // static INSCRIPTION_NUMBER_TO_SEQUENCE_NUMBER: RefCell<SHashMap<i32, u32>> = RefCell::new(SHashMap::new());
     // balance = rune_id(block: u64, tx: u32) + balance: u128: bytes28
     // TODO define RuneBalance
-    static OUTPOINT_TO_RUNE_BALANCES: RefCell<SHashMap<OutPoint, SVec<[u8; 28]>>> = RefCell::new(SHashMap::new());
+    static OUTPOINT_TO_RUNE_BALANCES: RefCell<SHashMap<OutPointValue, RuneBalance>> = RefCell::new(SHashMap::new());
     static RUNE_ID_TO_RUNE_ENTRY: RefCell<SHashMap<RuneId, RuneEntry>> = RefCell::new(SHashMap::new());
     static RUNE_TO_RUNE_ID: RefCell<SHashMap<u128, RuneId>> = RefCell::new(SHashMap::new());
-    static TRANSACTION_ID_TO_RUNE: RefCell<SHashMap<Txid, u128>> = RefCell::new(SHashMap::new());
+    static TRANSACTION_ID_TO_RUNE: RefCell<SHashMap<TxidValue, u128>> = RefCell::new(SHashMap::new());
 
     // static OUTPOINT_TO_SAT_RANGES: RefCell<SHashMap<&OutPointValue, SVec<&[u8]>>> = RefCell::new(SHashMap::new());
     // static OUTPOINT_TO_TXOUT: RefCell<SHashMap<&OutPointValue, TxOutValue>> = RefCell::new(SHashMap::new());
@@ -55,30 +57,30 @@ thread_local! {
     // static WRITE_TRANSACTION_STARTING_BLOCK_COUNT_TO_TIMESTAMP: RefCell<SHashMap<u32, u128>> = RefCell::new(SHashMap::new());
 }
 
-pub(crate) fn outpoint_to_rune_balances(f: F) -> R
+pub(crate) fn outpoint_to_rune_balances<F, R>(f: F) -> R
 where
-  F: Fn(&mut SHashMap<OutPoint, RawRuneBalance>) -> R,
+  F: Fn(&mut SHashMap<OutPointValue, RawRuneBalance>) -> R,
 {
-  crate::OUTPOINT_TO_RUNE_BALANCES.with_mut(|b| f(b))
+  crate::OUTPOINT_TO_RUNE_BALANCES.with_borrow_mut(|b| f(b))
 }
 
-pub(crate) fn rune_id_to_entry(f: F) -> R
+pub(crate) fn rune_id_to_rune_entry<F, R>(f: F) -> R
 where
   F: Fn(&mut SHashMap<RuneId, RuneEntry>) -> R,
 {
-  crate::RUNE_ID_TO_RUNE_ENTRY.with_mut(|r| f(r))
+  crate::RUNE_ID_TO_RUNE_ENTRY.with_borrow_mut(|r| f(r))
 }
 
-pub(crate) fn rune_to_rune_id(f: F) -> R
+pub(crate) fn rune_to_rune_id<F, R>(f: F) -> R
 where
   F: Fn(&mut SHashMap<u128, RuneId>) -> R,
 {
-  crate::RUNE_TO_RUNE_ID.with_mut(|r| f(r))
+  crate::RUNE_TO_RUNE_ID.with_borrow_mut(|r| f(r))
 }
 
-pub(crate) fn transaction_id_to_rune(f: F) -> R
+pub(crate) fn transaction_id_to_rune<F, R>(f: F) -> R
 where
-  F: Fn(&mut SHashMap<Txid, u128>) -> R,
+  F: Fn(&mut SHashMap<TxidValue, u128>) -> R,
 {
-  crate::TRANSACTION_ID_TO_RUNE.with_mut(|t| f(t))
+  crate::TRANSACTION_ID_TO_RUNE.with_borrow_mut(|t| f(t))
 }

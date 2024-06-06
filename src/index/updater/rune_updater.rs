@@ -1,4 +1,5 @@
 use crate::{index::*, *};
+use std::collections::HashMap;
 
 pub(super) struct RuneUpdater {
   pub(super) block_time: u32,
@@ -192,14 +193,15 @@ impl RuneUpdater {
       for (id, balance) in balances {
         Index::encode_rune_balance(id, balance.n(), &mut buffer);
 
-        if let Some(sender) = self.event_sender {
-          sender.blocking_send(Event::RuneTransferred {
-            outpoint,
-            block_height: self.height,
-            txid,
-            rune_id: id,
-            amount: balance.0,
-          })?;
+        if let Some(handler) = self.event_handler {
+          // TODO
+          // sender.blocking_send(Event::RuneTransferred {
+          //   outpoint,
+          //   block_height: self.height,
+          //   txid,
+          //   rune_id: id,
+          //   amount: balance.0,
+          // })?;
         }
       }
 
@@ -212,13 +214,14 @@ impl RuneUpdater {
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
 
-      if let Some(sender) = self.event_sender {
-        sender.blocking_send(Event::RuneBurned {
-          block_height: self.height,
-          txid,
-          rune_id: id,
-          amount: amount.n(),
-        })?;
+      if let Some(handler) = self.event_handler {
+        // TODO
+        // sender.blocking_send(Event::RuneBurned {
+        //   block_height: self.height,
+        //   txid,
+        //   rune_id: id,
+        //   amount: amount.n(),
+        // })?;
       }
     }
 
@@ -227,9 +230,9 @@ impl RuneUpdater {
 
   pub(super) fn update(self) -> Result {
     for (rune_id, burned) in self.burned {
-      let mut entry = storage::rune_id_to_entry(|r| r.get(rune_id).unwrap());
+      let mut entry = crate::rune_id_to_rune_entry(|r| r.get(rune_id).unwrap());
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
-      storage::rune_id_to_entry.insert(rune_id, entry)?;
+      crate::rune_id_to_rune_entry.insert(rune_id, entry)?;
     }
 
     Ok(())
@@ -242,8 +245,8 @@ impl RuneUpdater {
     id: RuneId,
     rune: Rune,
   ) -> Result {
-    storage::rune_to_rune_id(|r| r.insert(rune.store(), id));
-    storage::transaction_id_to_rune(|t| t.insert(txid, rune.store()));
+    crate::rune_to_rune_id(|r| r.insert(rune.store(), id));
+    crate::transaction_id_to_rune(|t| t.insert(txid, rune.store()));
 
     // let number = self.runes;
     // self.runes += 1;
@@ -292,7 +295,7 @@ impl RuneUpdater {
       }
     };
 
-    storage::rune_id_to_entry(|r| r.insert(id, entry));
+    crate::rune_id_to_rune_entry(|r| r.insert(id, entry));
 
     if let Some(handler) = self.event_handler {
       handler(Event::RuneEtched {
@@ -335,7 +338,7 @@ impl RuneUpdater {
     let rune = if let Some(rune) = rune {
       if rune < self.minimum
         || rune.is_reserved()
-        || storage::rune_to_rune_id(|r| r.get(rune.0)).is_some()
+        || crate::rune_to_rune_id(|r| r.get(rune.0)).is_some()
         || !self.tx_commits_to_rune(tx, rune)?
       {
         return Ok(None);
@@ -364,7 +367,7 @@ impl RuneUpdater {
   }
 
   fn mint(&mut self, id: RuneId) -> Result<Option<Lot>> {
-    let Some(entry) = storage::rune_id_to_entry(|r| r.get(&id)) else {
+    let Some(entry) = crate::rune_id_to_rune_entry(|r| r.get(&id)) else {
       return Ok(None);
     };
     // TODO
@@ -378,7 +381,7 @@ impl RuneUpdater {
 
     rune_entry.mints += 1;
 
-    storage::rune_id_to_entry(|r| r.insert(id, rune_entry));
+    crate::rune_id_to_rune_entry(|r| r.insert(id, rune_entry));
 
     Ok(Some(Lot(amount)))
   }
@@ -456,8 +459,7 @@ impl RuneUpdater {
 
     // increment unallocated runes with the runes in tx inputs
     for input in &tx.input {
-      if let Some(guard) = storage::outpoint_to_rune_balances(|b| b.remove(&input.previous_output))
-      {
+      if let Some(guard) = crate::outpoint_to_rune_balances(|b| b.remove(&input.previous_output)) {
         let buffer = guard.value();
         let mut i = 0;
         while i < buffer.len() {

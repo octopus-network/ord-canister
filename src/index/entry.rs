@@ -1,4 +1,5 @@
 use crate::{index::*, *};
+use ic_stable_memory::{AsFixedSizeBytes, StableType};
 use std::io::Cursor;
 
 pub(crate) trait Entry: Sized {
@@ -8,6 +9,58 @@ pub(crate) trait Entry: Sized {
 
   fn store(self) -> Self::Value;
 }
+
+impl AsFixedSizeBytes for RuneId {
+  type Buf = [u8; Self::SIZE];
+
+  const SIZE: usize = 12;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    let mut offset = 0;
+    self.block.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 8;
+    self.tx.as_fixed_size_bytes(&mut buf[offset..]);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut offset = 0;
+    let block = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
+    offset += 8;
+    let tx = u32::from_fixed_size_bytes(&buf[offset..]);
+    Self { block, tx }
+  }
+}
+
+impl StableType for RuneId {}
+
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
+pub struct RuneBalance {
+  pub id: RuneId,
+  pub balance: u128,
+}
+
+impl AsFixedSizeBytes for RuneBalance {
+  type Buf = [u8; Self::SIZE];
+
+  const SIZE: usize = 28;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    let mut offset = 0;
+    self.id.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += RuneId::SIZE;
+    self.balance.as_fixed_size_bytes(&mut buf[offset..]);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut offset = 0;
+    let id = RuneId::from_fixed_size_bytes(&buf[offset..offset + RuneId::SIZE]);
+    offset += RuneId::SIZE;
+    let balance = u128::from_fixed_size_bytes(&buf[offset..]);
+    Self { id, balance }
+  }
+}
+
+impl StableType for RuneBalance {}
 
 pub(crate) type HeaderValue = [u8; 80];
 
@@ -56,6 +109,135 @@ pub struct RuneEntry {
   pub timestamp: u64,
   pub turbo: bool,
 }
+
+impl AsFixedSizeBytes for RuneEntry {
+  type Buf = [u8; Self::SIZE];
+
+  const SIZE: usize = 8 + 16 + 1 + 32 + 16 + 16 + SpacedRune::SIZE + 5 + Terms::SIZE + 1 + 8 + 1;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    let mut offset = 0;
+    self.block.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 8;
+    self.burned.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 16;
+    self.divisibility.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 1;
+    self.etching.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 32;
+    self.mints.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 16;
+    // self.number.as_fixed_size_bytes(&mut buf[offset..]);
+    // offset += 8;
+    self.premine.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 16;
+    self.spaced_rune.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += SpacedRune::SIZE;
+    self.symbol.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 5;
+    self.terms.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += Terms::SIZE + 1;
+    self.timestamp.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 8;
+    self.turbo.as_fixed_size_bytes(&mut buf[offset..]);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut offset = 0;
+    let block = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
+    offset += 8;
+    let burned = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
+    offset += 16;
+    let divisibility = u8::from_fixed_size_bytes(&buf[offset..offset + 1]);
+    offset += 1;
+    let etching = Txid::from_fixed_size_bytes(&buf[offset..offset + 32]);
+    offset += 32;
+    let mints = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
+    offset += 16;
+    // let number = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
+    // offset += 8;
+    let premine = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
+    offset += 16;
+    let spaced_rune = SpacedRune::from_fixed_size_bytes(&buf[offset..offset + SpacedRune::SIZE]);
+    offset += SpacedRune::SIZE;
+    let symbol = Option::<char>::from_fixed_size_bytes(&buf[offset..offset + 5]);
+    offset += 5;
+    let terms = Option::<Terms>::from_fixed_size_bytes(&buf[offset..offset + Terms::SIZE + 1]);
+    offset += Terms::SIZE + 1;
+    let timestamp = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
+    offset += 8;
+    let turbo = bool::from_fixed_size_bytes(&buf[offset..]);
+    Self {
+      block,
+      burned,
+      divisibility,
+      etching,
+      mints,
+      // number,
+      premine,
+      spaced_rune,
+      symbol,
+      terms,
+      timestamp,
+      turbo,
+    }
+  }
+}
+
+impl StableType for RuneEntry {}
+
+#[derive(Clone, Eq, PartialEq, Copy)]
+pub struct Terms {
+  pub amount: Option<u128>,
+  pub cap: Option<u128>,
+  pub height: (Option<u64>, Option<u64>),
+  pub offset: (Option<u64>, Option<u64>),
+}
+
+impl AsFixedSizeBytes for Terms {
+  type Buf = [u8; Self::SIZE];
+
+  const SIZE: usize = 6 + 16 + 16 + 8 + 8 + 8 + 8;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    let mut offset = 0;
+    self.amount.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 17;
+    self.cap.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 17;
+    self.height.0.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 9;
+    self.height.1.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 9;
+    self.offset.0.as_fixed_size_bytes(&mut buf[offset..]);
+    offset += 9;
+    self.offset.1.as_fixed_size_bytes(&mut buf[offset..]);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut offset = 0;
+    let amount = Option::<u128>::from_fixed_size_bytes(&buf[offset..offset + 17]);
+    offset += 17;
+    let cap = Option::<u128>::from_fixed_size_bytes(&buf[offset..offset + 17]);
+    offset += 17;
+    let h0 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
+    offset += 9;
+    let h1 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
+    offset += 9;
+    let o0 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
+    offset += 9;
+    let o1 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
+
+    Self {
+      amount,
+      cap,
+      height: (h0, h1),
+      offset: (o0, o1),
+    }
+  }
+}
+
+impl StableType for Terms {}
 
 impl RuneEntry {
   pub fn mintable(&self, height: u64) -> Result<u128, MintError> {
@@ -289,21 +471,40 @@ impl Entry for RuneId {
   }
 }
 
-pub(crate) type OutPointValue = [u8; 36];
+#[derive(Clone, Eq, PartialEq, Hash, Copy)]
+pub(crate) struct OutPointValue(pub [u8; 36]);
 
 impl Entry for OutPoint {
   type Value = OutPointValue;
 
   fn load(value: Self::Value) -> Self {
-    Decodable::consensus_decode(&mut Cursor::new(value)).unwrap()
+    Decodable::consensus_decode(&mut Cursor::new(value.0)).unwrap()
   }
 
   fn store(self) -> Self::Value {
     let mut value = [0; 36];
     self.consensus_encode(&mut value.as_mut_slice()).unwrap();
-    value
+    Self::Value(value)
   }
 }
+
+impl AsFixedSizeBytes for OutPointValue {
+  type Buf = [u8; 36];
+
+  const SIZE: usize = 36;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    buf.copy_from_slice(&self.0);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut value = [0; 36];
+    value.copy_from_slice(buf);
+    Self(value)
+  }
+}
+
+impl StableType for OutPointValue {}
 
 pub(crate) type TxOutValue = (
   u64,     // value
@@ -368,7 +569,8 @@ impl Entry for SatRange {
   }
 }
 
-pub(crate) type TxidValue = [u8; 32];
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub(crate) struct TxidValue(pub [u8; 32]);
 
 impl Entry for Txid {
   type Value = TxidValue;
@@ -378,9 +580,27 @@ impl Entry for Txid {
   }
 
   fn store(self) -> Self::Value {
-    Txid::to_byte_array(self)
+    TxidValue(Txid::to_byte_array(self))
   }
 }
+
+impl AsFixedSizeBytes for TxidValue {
+  type Buf = [u8; 32];
+
+  const SIZE: usize = 32;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    buf.copy_from_slice(&self.0);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut value = [0; 32];
+    value.copy_from_slice(buf);
+    Self(value)
+  }
+}
+
+impl StableType for TxidValue {}
 
 #[cfg(test)]
 mod tests {
@@ -485,7 +705,7 @@ mod tests {
         offset: (Some(5), Some(6)),
       }),
       mints: 11,
-      number: 6,
+      // number: 6,
       premine: 12,
       spaced_rune: SpacedRune {
         rune: Rune(7),
