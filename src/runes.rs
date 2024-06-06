@@ -8,7 +8,7 @@ pub enum MintError {
   Unmintable,
 }
 
-impl Display for MintError {
+impl core::fmt::Display for MintError {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
       MintError::Cap(cap) => write!(f, "limited to {cap} mints"),

@@ -42,7 +42,7 @@ thread_local! {
     // static INSCRIPTION_NUMBER_TO_SEQUENCE_NUMBER: RefCell<SHashMap<i32, u32>> = RefCell::new(SHashMap::new());
     // balance = rune_id(block: u64, tx: u32) + balance: u128: bytes28
     // TODO define RuneBalance
-    static OUTPOINT_TO_RUNE_BALANCES: RefCell<SHashMap<OutPointValue, RuneBalance>> = RefCell::new(SHashMap::new());
+    static OUTPOINT_TO_RUNE_BALANCES: RefCell<SHashMap<OutPointValue, SVec<RuneBalance>>> = RefCell::new(SHashMap::new());
     static RUNE_ID_TO_RUNE_ENTRY: RefCell<SHashMap<RuneId, RuneEntry>> = RefCell::new(SHashMap::new());
     static RUNE_TO_RUNE_ID: RefCell<SHashMap<u128, RuneId>> = RefCell::new(SHashMap::new());
     static TRANSACTION_ID_TO_RUNE: RefCell<SHashMap<TxidValue, u128>> = RefCell::new(SHashMap::new());
@@ -60,7 +60,7 @@ thread_local! {
 
 pub(crate) fn outpoint_to_rune_balances<F, R>(f: F) -> R
 where
-  F: Fn(&mut SHashMap<OutPointValue, RawRuneBalance>) -> R,
+  F: Fn(&mut SHashMap<OutPointValue, SVec<RuneBalance>>) -> R,
 {
   crate::OUTPOINT_TO_RUNE_BALANCES.with_borrow_mut(|b| f(b))
 }

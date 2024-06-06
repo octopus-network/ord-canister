@@ -102,7 +102,7 @@ where
 // TODO
 const URL: &'static str = "http://localhost:8332";
 
-pub(crate) async fn get_block_hash(height: u64) -> Result<BlockHash, RpcError> {
+pub(crate) async fn get_block_hash(height: u32) -> Result<BlockHash, RpcError> {
   make_rpc::<BlockHash>(URL, "getblockhash", serde_json::json!([height])).await
 }
 

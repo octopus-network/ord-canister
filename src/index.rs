@@ -28,13 +28,13 @@ pub(crate) fn encode_rune_balance(id: RuneId, balance: u128, buffer: &mut Vec<u8
 }
 
 pub(crate) fn get_etching(txid: Txid) -> Result<Option<SpacedRune>> {
-  let Some(rune) = crate::transaction_id_to_rune(|t| t.get(&txid)) else {
+  let Some(rune) = crate::transaction_id_to_rune(|t| t.get(&Txid::store(txid)).map(|r| *r)) else {
     return Ok(None);
   };
 
-  let id = crate::rune_to_rune_id(|r| r.get(&rune).unwrap());
+  let id = crate::rune_to_rune_id(|r| *r.get(&rune).unwrap());
 
-  let entry = crate::rune_id_to_rune_entry(|r| r.get(&id).unwrap());
+  let entry = crate::rune_id_to_rune_entry(|r| *r.get(&id).unwrap());
 
   Ok(Some(entry.spaced_rune))
 }
@@ -61,23 +61,25 @@ pub(crate) fn get_rune_balances_for_output(
 
   // let id_to_rune_entries = rtx.open_table(RUNE_ID_TO_RUNE_ENTRY)?;
 
-  let Some(balances) = crate::outpoint_to_rune_balances(|o| o.get(&outpoint)) else {
+  let Some(balances) =
+    crate::outpoint_to_rune_balances(|o| o.get(&OutPoint::store(outpoint)).map(|b| *b))
+  else {
     return Ok(BTreeMap::new());
   };
 
   // let balances_buffer = balances.value();
 
   let mut result = BTreeMap::new();
-  for rune in balances {
-    let ((id, amount), length) = decode_rune_balance(&balances_buffer[i..]).unwrap();
-    // i += length;
+  for rune in balances.iter() {
+    let rune = *rune;
+    // let ((id, amount), length) = decode_rune_balance(&balances_buffer[i..]).unwrap();
 
-    let entry = RuneEntry::load(rune_id_to_rune_entry.get(id.store())?.unwrap().value());
+    let entry = rune_id_to_rune_entry(|r| r.get(id.store()).map(|r| *r).unwrap());
 
     result.insert(
       entry.spaced_rune,
       Pile {
-        amount,
+        amount: rune.balance,
         divisibility: entry.divisibility,
         symbol: entry.symbol,
       },

@@ -29,7 +29,7 @@ impl From<Block> for BlockData {
 pub(crate) async fn get_block(height: u32) -> Result<Option<BlockData>> {
   let hash = rpc::get_block_hash(height).await?;
   let block = rpc::get_block(hash).await?;
-  Ok(BlockData::from(block))
+  Ok(Some(BlockData::from(block)))
 }
 
 pub(crate) async fn index_block(height: u32, block: BlockData) {

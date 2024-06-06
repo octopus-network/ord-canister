@@ -435,20 +435,20 @@ pub(crate) type TxOutValue = (
   Vec<u8>, // script_pubkey
 );
 
-impl Entry for TxOut {
-  type Value = TxOutValue;
+// impl Entry for TxOut {
+//   type Value = TxOutValue;
 
-  fn load(value: Self::Value) -> Self {
-    Self {
-      value: value.0,
-      script_pubkey: ScriptBuf::from_bytes(value.1),
-    }
-  }
+//   fn load(value: Self::Value) -> Self {
+//     Self {
+//       value: value.0,
+//       script_pubkey: ScriptBuf::from_bytes(value.1),
+//     }
+//   }
 
-  fn store(self) -> Self::Value {
-    (self.value, self.script_pubkey.to_bytes())
-  }
-}
+//   fn store(self) -> Self::Value {
+//     (self.value, self.script_pubkey.to_bytes())
+//   }
+// }
 
 pub(crate) type SatPointValue = [u8; 44];
 

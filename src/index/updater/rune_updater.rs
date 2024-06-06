@@ -1,4 +1,8 @@
-use crate::{index::*, *};
+use crate::{
+  index::{entry::RuneBalance, *},
+  *,
+};
+use ic_stable_memory::collections::SVec;
 use std::collections::HashMap;
 
 pub(super) struct RuneUpdater {
@@ -189,10 +193,12 @@ impl RuneUpdater {
         txid,
         vout: vout.try_into().unwrap(),
       };
-
+      let mut vec = SVec::new_with_capacity(balances.len()).expect("out of memory");
       for (id, balance) in balances {
-        Index::encode_rune_balance(id, balance.n(), &mut buffer);
-
+        vec.push(RuneBalance {
+          id,
+          balance: balance.0,
+        });
         if let Some(handler) = self.event_handler {
           // TODO
           // sender.blocking_send(Event::RuneTransferred {
@@ -204,10 +210,7 @@ impl RuneUpdater {
           // })?;
         }
       }
-
-      self
-        .outpoint_to_balances
-        .insert(&outpoint.store(), buffer.as_slice())?;
+      outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec));
     }
 
     // increment entries with burned runes
@@ -230,9 +233,9 @@ impl RuneUpdater {
 
   pub(super) fn update(self) -> Result {
     for (rune_id, burned) in self.burned {
-      let mut entry = crate::rune_id_to_rune_entry(|r| r.get(rune_id).unwrap());
+      let mut entry = crate::rune_id_to_rune_entry(|r| *r.get(&rune_id).unwrap());
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
-      crate::rune_id_to_rune_entry.insert(rune_id, entry)?;
+      crate::rune_id_to_rune_entry(|r| r.insert(rune_id, entry));
     }
 
     Ok(())
@@ -246,7 +249,7 @@ impl RuneUpdater {
     rune: Rune,
   ) -> Result {
     crate::rune_to_rune_id(|r| r.insert(rune.store(), id));
-    crate::transaction_id_to_rune(|t| t.insert(txid, rune.store()));
+    crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0));
 
     // let number = self.runes;
     // self.runes += 1;
@@ -297,12 +300,13 @@ impl RuneUpdater {
 
     crate::rune_id_to_rune_entry(|r| r.insert(id, entry));
 
-    if let Some(handler) = self.event_handler {
-      handler(Event::RuneEtched {
+    match &self.event_handler {
+      Some(handler) => handler(Event::RuneEtched {
         block_height: self.height,
         txid,
         rune_id: id,
-      });
+      }),
+      None => {}
     }
     // TODO
     // let inscription_id = InscriptionId { txid, index: 0 };
@@ -338,7 +342,7 @@ impl RuneUpdater {
     let rune = if let Some(rune) = rune {
       if rune < self.minimum
         || rune.is_reserved()
-        || crate::rune_to_rune_id(|r| r.get(rune.0)).is_some()
+        || crate::rune_to_rune_id(|r| r.get(&rune.0).is_some())
         || !self.tx_commits_to_rune(tx, rune)?
       {
         return Ok(None);
@@ -367,17 +371,13 @@ impl RuneUpdater {
   }
 
   fn mint(&mut self, id: RuneId) -> Result<Option<Lot>> {
-    let Some(entry) = crate::rune_id_to_rune_entry(|r| r.get(&id)) else {
+    let Some(mut rune_entry) = crate::rune_id_to_rune_entry(|r| r.get(&id).map(|e| *e)) else {
       return Ok(None);
     };
-    // TODO
-    let mut rune_entry = RuneEntry::load(entry.value());
 
     let Ok(amount) = rune_entry.mintable(self.height.into()) else {
       return Ok(None);
     };
-    // TODO
-    // drop(entry);
 
     rune_entry.mints += 1;
 
@@ -459,14 +459,20 @@ impl RuneUpdater {
 
     // increment unallocated runes with the runes in tx inputs
     for input in &tx.input {
-      if let Some(guard) = crate::outpoint_to_rune_balances(|b| b.remove(&input.previous_output)) {
-        let buffer = guard.value();
-        let mut i = 0;
-        while i < buffer.len() {
-          let ((id, balance), len) = Index::decode_rune_balance(&buffer[i..]).unwrap();
-          i += len;
-          *unallocated.entry(id).or_default() += balance;
+      if let Some(balances) =
+        crate::outpoint_to_rune_balances(|b| b.remove(&OutPoint::store(input.previous_output)))
+      {
+        for rune in balances.iter() {
+          let rune = *rune;
+          *unallocated.entry(rune.id).or_default() += rune.balance;
         }
+        // let buffer = guard.value();
+        // let mut i = 0;
+        // while i < buffer.len() {
+        //   let ((id, balance), len) = Index::decode_rune_balance(&buffer[i..]).unwrap();
+        //   i += len;
+        //   *unallocated.entry(id).or_default() += balance;
+        // }
       }
     }
 
