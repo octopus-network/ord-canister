@@ -6,10 +6,8 @@ use {
     },
     event::Event,
     lot::Lot,
-    // reorg::Reorg,
   },
-  super::*,
-  // crate::runes::MintError,
+  super::{runes::MintError, *},
   bitcoin::block::Header,
   std::collections::BTreeMap,
 };
@@ -19,7 +17,6 @@ pub use self::entry::RuneEntry;
 pub(crate) mod entry;
 pub mod event;
 mod lot;
-// mod reorg;
 mod updater;
 
 const SCHEMA_VERSION: u64 = 26;
@@ -35,7 +32,7 @@ pub(crate) fn get_etching(txid: Txid) -> Result<Option<SpacedRune>> {
     return Ok(None);
   };
 
-  let id = crate::rune_to_rune_id(|r| r.get(rune).unwrap());
+  let id = crate::rune_to_rune_id(|r| r.get(&rune).unwrap());
 
   let entry = crate::rune_id_to_rune_entry(|r| r.get(&id).unwrap());
 
@@ -75,7 +72,7 @@ pub(crate) fn get_rune_balances_for_output(
     let ((id, amount), length) = decode_rune_balance(&balances_buffer[i..]).unwrap();
     // i += length;
 
-    let entry = RuneEntry::load(rune_id_to_rune_entries.get(id.store())?.unwrap().value());
+    let entry = RuneEntry::load(rune_id_to_rune_entry.get(id.store())?.unwrap().value());
 
     result.insert(
       entry.spaced_rune,

@@ -1,5 +1,6 @@
 mod index;
 mod rpc;
+mod runes;
 
 use self::index::entry::{OutPointValue, TxidValue};
 pub use bitcoin::{

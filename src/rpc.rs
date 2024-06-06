@@ -1,5 +1,5 @@
-use ic_cdk::api::management_canister::http_request::*;
 use crate::*;
+use ic_cdk::api::management_canister::http_request::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
@@ -42,7 +42,7 @@ struct ErrorMsg {
 
 pub(crate) async fn make_rpc<R>(
   url: impl ToString,
-  endpoint: impl ToString,
+  endpoint: impl AsRef<str>,
   params: impl Into<serde_json::Value>,
 ) -> Result<R, RpcError>
 where
@@ -51,7 +51,7 @@ where
   let payload = Payload {
     jsonrpc: "2.0",
     id: 1,
-    method: endpoint,
+    method: endpoint.as_ref(),
     params: params.into(),
   };
   let body = serde_json::to_vec(&payload).unwrap();
@@ -75,24 +75,24 @@ where
   // TODO max cycle ~ 1_000_000_000
   let (response,) = http_request(args, 1_000_000_000)
     .await
-    .map_err(|(_, e)| RpcError::Io(endpoint, url.to_string(), e))?;
+    .map_err(|(_, e)| RpcError::Io(endpoint.as_ref(), url.to_string(), e))?;
   let reply: Reply<R> = serde_json::from_slice(response.body.as_slice())
-    .map_err(|e| RpcError::Decode(endpoint, url, e.to_string()))?;
+    .map_err(|e| RpcError::Decode(endpoint.as_ref(), url.to_string(), e.to_string()))?;
   if reply.error.is_some() {
     return Err(RpcError::Endpoint(
-      endpoint,
+      endpoint.as_ref(),
       url.to_string(),
       reply.error.map(|e| e.message).unwrap(),
     ));
   }
   match reply.result {
     Some(result) => Ok(decoder(result).ok_or(RpcError::Decode(
-      endpoint,
+      endpoint.as_ref(),
       url.to_string(),
       "Decoding failed".to_string(),
     ))?),
     _ => Err(RpcError::Decode(
-      endpoint,
+      endpoint.as_ref(),
       url.to_string(),
       "No result".to_string(),
     )),
@@ -123,5 +123,5 @@ pub(crate) async fn get_block(hash: BlockHash) -> Result<Block, RpcError> {
   )
   .await?;
   consensus::encode::deserialize_hex(&hex)
-    .map_err(|e| RpcError::Decode("getblock", URL.to_string(), e))
+    .map_err(|e| RpcError::Decode("getblock", URL.to_string(), e.to_string()))
 }

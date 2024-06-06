@@ -10,29 +10,6 @@ pub(crate) trait Entry: Sized {
   fn store(self) -> Self::Value;
 }
 
-impl AsFixedSizeBytes for RuneId {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 12;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    let mut offset = 0;
-    self.block.as_fixed_size_bytes(&mut buf[offset..]);
-    offset += 8;
-    self.tx.as_fixed_size_bytes(&mut buf[offset..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut offset = 0;
-    let block = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
-    offset += 8;
-    let tx = u32::from_fixed_size_bytes(&buf[offset..]);
-    Self { block, tx }
-  }
-}
-
-impl StableType for RuneId {}
-
 #[derive(Copy, Eq, PartialEq, Clone, Debug)]
 pub struct RuneBalance {
   pub id: RuneId,
@@ -123,7 +100,7 @@ impl AsFixedSizeBytes for RuneEntry {
     offset += 16;
     self.divisibility.as_fixed_size_bytes(&mut buf[offset..]);
     offset += 1;
-    self.etching.as_fixed_size_bytes(&mut buf[offset..]);
+    self.etching.store().as_fixed_size_bytes(&mut buf[offset..]);
     offset += 32;
     self.mints.as_fixed_size_bytes(&mut buf[offset..]);
     offset += 16;
@@ -150,7 +127,7 @@ impl AsFixedSizeBytes for RuneEntry {
     offset += 16;
     let divisibility = u8::from_fixed_size_bytes(&buf[offset..offset + 1]);
     offset += 1;
-    let etching = Txid::from_fixed_size_bytes(&buf[offset..offset + 32]);
+    let etching = TxidValue::from_fixed_size_bytes(&buf[offset..offset + 32]);
     offset += 32;
     let mints = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
     offset += 16;
@@ -171,7 +148,7 @@ impl AsFixedSizeBytes for RuneEntry {
       block,
       burned,
       divisibility,
-      etching,
+      etching: Txid::load(etching),
       mints,
       // number,
       premine,
@@ -185,59 +162,6 @@ impl AsFixedSizeBytes for RuneEntry {
 }
 
 impl StableType for RuneEntry {}
-
-#[derive(Clone, Eq, PartialEq, Copy)]
-pub struct Terms {
-  pub amount: Option<u128>,
-  pub cap: Option<u128>,
-  pub height: (Option<u64>, Option<u64>),
-  pub offset: (Option<u64>, Option<u64>),
-}
-
-impl AsFixedSizeBytes for Terms {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 6 + 16 + 16 + 8 + 8 + 8 + 8;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    let mut offset = 0;
-    self.amount.as_fixed_size_bytes(&mut buf[offset..]);
-    offset += 17;
-    self.cap.as_fixed_size_bytes(&mut buf[offset..]);
-    offset += 17;
-    self.height.0.as_fixed_size_bytes(&mut buf[offset..]);
-    offset += 9;
-    self.height.1.as_fixed_size_bytes(&mut buf[offset..]);
-    offset += 9;
-    self.offset.0.as_fixed_size_bytes(&mut buf[offset..]);
-    offset += 9;
-    self.offset.1.as_fixed_size_bytes(&mut buf[offset..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut offset = 0;
-    let amount = Option::<u128>::from_fixed_size_bytes(&buf[offset..offset + 17]);
-    offset += 17;
-    let cap = Option::<u128>::from_fixed_size_bytes(&buf[offset..offset + 17]);
-    offset += 17;
-    let h0 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
-    offset += 9;
-    let h1 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
-    offset += 9;
-    let o0 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
-    offset += 9;
-    let o1 = Option::<u64>::from_fixed_size_bytes(&buf[offset..offset + 9]);
-
-    Self {
-      amount,
-      cap,
-      height: (h0, h1),
-      offset: (o0, o1),
-    }
-  }
-}
-
-impl StableType for Terms {}
 
 impl RuneEntry {
   pub fn mintable(&self, height: u64) -> Result<u128, MintError> {
@@ -484,7 +408,7 @@ impl Entry for OutPoint {
   fn store(self) -> Self::Value {
     let mut value = [0; 36];
     self.consensus_encode(&mut value.as_mut_slice()).unwrap();
-    Self::Value(value)
+    OutPointValue(value)
   }
 }
 
@@ -576,7 +500,7 @@ impl Entry for Txid {
   type Value = TxidValue;
 
   fn load(value: Self::Value) -> Self {
-    Txid::from_byte_array(value)
+    Txid::from_byte_array(value.0)
   }
 
   fn store(self) -> Self::Value {
