@@ -466,13 +466,6 @@ impl RuneUpdater {
           let rune = *rune;
           *unallocated.entry(rune.id).or_default() += rune.balance;
         }
-        // let buffer = guard.value();
-        // let mut i = 0;
-        // while i < buffer.len() {
-        //   let ((id, balance), len) = Index::decode_rune_balance(&buffer[i..]).unwrap();
-        //   i += len;
-        //   *unallocated.entry(id).or_default() += balance;
-        // }
       }
     }
 
