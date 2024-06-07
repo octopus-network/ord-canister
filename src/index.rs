@@ -58,3 +58,12 @@ pub(crate) fn get_rune_balances_for_output(
     None => Ok(BTreeMap::new()),
   })
 }
+// TODO handle best > height
+pub(crate) async fn get_block(height: u32) -> Result<Option<BlockData>> {
+}
+
+pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
+
+pub async fn index() {
+  updater::get_block()
+}

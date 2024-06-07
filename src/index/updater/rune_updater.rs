@@ -10,10 +10,7 @@ pub(super) struct RuneUpdater {
   pub(super) burned: HashMap<RuneId, Lot>,
   pub(super) event_handler: Option<Box<dyn Fn(Event)>>,
   pub(super) height: u32,
-  // pub(super) inscription_id_to_sequence_number: &'a Table<'tx, InscriptionIdValue, u32>,
   pub(super) minimum: Rune,
-  // pub(super) runes: u64,
-  // pub(super) sequence_number_to_rune_id: &'a mut Table<'tx, u32, RuneIdValue>,
 }
 
 impl RuneUpdater {
