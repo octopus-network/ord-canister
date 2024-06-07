@@ -1242,6 +1242,7 @@ dependencies = [
  "bitcoincore-rpc-json",
  "candid 0.9.11",
  "cfg-if",
+ "core2",
  "generic-array",
  "hex",
  "ic-cdk 0.11.3",

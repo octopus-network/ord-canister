@@ -42,7 +42,7 @@ struct ErrorMsg {
 
 pub(crate) async fn make_rpc<R>(
   url: impl ToString,
-  endpoint: impl AsRef<str>,
+  endpoint: &'static str,
   params: impl Into<serde_json::Value>,
 ) -> Result<R, RpcError>
 where
@@ -85,25 +85,21 @@ where
       reply.error.map(|e| e.message).unwrap(),
     ));
   }
-  match reply.result {
-    Some(result) => Ok(decoder(result).ok_or(RpcError::Decode(
-      endpoint.as_ref(),
-      url.to_string(),
-      "Decoding failed".to_string(),
-    ))?),
-    _ => Err(RpcError::Decode(
-      endpoint.as_ref(),
-      url.to_string(),
-      "No result".to_string(),
-    )),
-  }
+  reply.result.ok_or(RpcError::Decode(
+    endpoint.as_ref(),
+    url.to_string(),
+    "No result".to_string(),
+  ))
 }
 
 // TODO
 const URL: &'static str = "http://localhost:8332";
 
+use std::str::FromStr;
 pub(crate) async fn get_block_hash(height: u32) -> Result<BlockHash, RpcError> {
-  make_rpc::<BlockHash>(URL, "getblockhash", serde_json::json!([height])).await
+  let hex = make_rpc::<String>(URL, "getblockhash", serde_json::json!([height])).await?;
+  BlockHash::from_str(&hex)
+    .map_err(|e| RpcError::Decode("getblockhash", URL.to_string(), e.to_string()))
 }
 
 // pub(crate) async fn get_block_header(hash: BlockHash) -> Result<BlockHeader, RpcError> {
@@ -122,6 +118,9 @@ pub(crate) async fn get_block(hash: BlockHash) -> Result<Block, RpcError> {
     serde_json::json!([format!("{:x}", hash), 0]),
   )
   .await?;
-  consensus::encode::deserialize_hex(&hex)
+  use hex::FromHex;
+  let hex = <Vec<u8>>::from_hex(hex)
+    .map_err(|e| RpcError::Decode("getblock", URL.to_string(), e.to_string()))?;
+  consensus::encode::deserialize(&hex)
     .map_err(|e| RpcError::Decode("getblock", URL.to_string(), e.to_string()))
 }

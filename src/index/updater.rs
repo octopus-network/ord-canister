@@ -32,14 +32,14 @@ pub(crate) async fn get_block(height: u32) -> Result<Option<BlockData>> {
   Ok(Some(BlockData::from(block)))
 }
 
-pub(crate) async fn index_block(height: u32, block: BlockData) {
+pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
   let mut updater = RuneUpdater {
     block_time: block.header.time,
     burned: HashMap::new(),
     // TODO
     event_handler: None,
     height,
-    minimum: Rune::minimum_at_height(index.settings.chain().network(), Height(height)),
+    minimum: Rune::minimum_at_height(Network::Bitcoin, Height(height)),
   };
 
   for (i, (tx, txid)) in block.txdata.iter().enumerate() {
@@ -47,4 +47,5 @@ pub(crate) async fn index_block(height: u32, block: BlockData) {
   }
 
   updater.update()?;
+  Ok(())
 }

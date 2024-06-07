@@ -10,7 +10,7 @@ pub use bitcoin::{
     constants::{DIFFCHANGE_INTERVAL, MAX_SCRIPT_ELEMENT_SIZE, SUBSIDY_HALVING_INTERVAL},
     locktime::absolute::LockTime,
   },
-  consensus::{self, Decodable, Encodable},
+  consensus::{self, encode, Decodable, Encodable},
   hash_types::{BlockHash, TxMerkleNode},
   hashes::Hash,
   script, Amount, Block, Network, OutPoint, Script, ScriptBuf, Sequence, Transaction, TxIn, TxOut,
@@ -60,7 +60,7 @@ thread_local! {
 
 pub(crate) fn outpoint_to_rune_balances<F, R>(f: F) -> R
 where
-  F: Fn(&mut SHashMap<OutPointValue, SVec<RuneBalance>>) -> R,
+  F: FnOnce(&mut SHashMap<OutPointValue, SVec<RuneBalance>>) -> R,
 {
   crate::OUTPOINT_TO_RUNE_BALANCES.with_borrow_mut(|b| f(b))
 }

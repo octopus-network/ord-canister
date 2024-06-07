@@ -1,6 +1,6 @@
 use crate::{index::*, *};
+use core2::io::Cursor;
 use ic_stable_memory::{AsFixedSizeBytes, StableType};
-use std::io::Cursor;
 
 pub(crate) trait Entry: Sized {
   type Value;

@@ -29,7 +29,7 @@ impl RuneUpdater {
         if let Some(amount) = self.mint(id)? {
           *unallocated.entry(id).or_default() += amount;
 
-          if let Some(handler) = self.event_handler {
+          if let Some(handler) = &self.event_handler {
             // sender.blocking_send(Event::RuneMinted {
             //     block_height: self.height,
             //     txid,
@@ -143,7 +143,7 @@ impl RuneUpdater {
       // assign all un-allocated runes to the default output, or the first non
       // OP_RETURN output if there is no default
       if let Some(vout) = pointer
-        .map(|pointer| pointer.into_usize())
+        .map(|pointer| pointer as usize)
         .inspect(|&pointer| assert!(pointer < allocated.len()))
         .or_else(|| {
           tx.output
@@ -168,7 +168,6 @@ impl RuneUpdater {
     }
 
     // update outpoint balances
-    let mut buffer: Vec<u8> = Vec::new();
     for (vout, balances) in allocated.into_iter().enumerate() {
       if balances.is_empty() {
         continue;
@@ -181,8 +180,6 @@ impl RuneUpdater {
         }
         continue;
       }
-
-      buffer.clear();
 
       let mut balances = balances.into_iter().collect::<Vec<(RuneId, Lot)>>();
 
@@ -199,7 +196,7 @@ impl RuneUpdater {
           id,
           balance: balance.0,
         });
-        if let Some(handler) = self.event_handler {
+        if let Some(handler) = &self.event_handler {
           // TODO
           // sender.blocking_send(Event::RuneTransferred {
           //   outpoint,
@@ -217,7 +214,7 @@ impl RuneUpdater {
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
 
-      if let Some(handler) = self.event_handler {
+      if let Some(handler) = &self.event_handler {
         // TODO
         // sender.blocking_send(Event::RuneBurned {
         //   block_height: self.height,
@@ -250,9 +247,6 @@ impl RuneUpdater {
   ) -> Result {
     crate::rune_to_rune_id(|r| r.insert(rune.store(), id));
     crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0));
-
-    // let number = self.runes;
-    // self.runes += 1;
 
     let entry = match artifact {
       Artifact::Cenotaph(_) => RuneEntry {
@@ -308,17 +302,6 @@ impl RuneUpdater {
       }),
       None => {}
     }
-    // TODO
-    // let inscription_id = InscriptionId { txid, index: 0 };
-
-    // if let Some(sequence_number) = self
-    //     .inscription_id_to_sequence_number
-    //     .get(&inscription_id.store())?
-    // {
-    //     self.sequence_number_to_rune_id
-    //         .insert(sequence_number.value(), id.store())?;
-    // }
-
     Ok(())
   }
 
@@ -343,21 +326,13 @@ impl RuneUpdater {
       if rune < self.minimum
         || rune.is_reserved()
         || crate::rune_to_rune_id(|r| r.get(&rune.0).is_some())
-        || !self.tx_commits_to_rune(tx, rune)?
+      // true means the tx's input is an valid output of previous tx. can we just omit this check?
+      // || !self.tx_commits_to_rune(tx, rune)?
       {
         return Ok(None);
       }
       rune
     } else {
-      // let reserved_runes = self
-      //     .statistic_to_count
-      //     .get(&Statistic::ReservedRunes.into())?
-      //     .map(|entry| entry.value())
-      //     .unwrap_or_default();
-
-      // self.statistic_to_count
-      //     .insert(&Statistic::ReservedRunes.into(), reserved_runes + 1)?;
-
       Rune::reserved(self.height.into(), tx_index)
     };
 
@@ -384,73 +359,6 @@ impl RuneUpdater {
     crate::rune_id_to_rune_entry(|r| r.insert(id, rune_entry));
 
     Ok(Some(Lot(amount)))
-  }
-
-  fn tx_commits_to_rune(&self, tx: &Transaction, rune: Rune) -> Result<bool> {
-    let commitment = rune.commitment();
-
-    for input in &tx.input {
-      // extracting a tapscript does not indicate that the input being spent
-      // was actually a taproot output. this is checked below, when we load the
-      // output's entry from the database
-      let Some(tapscript) = input.witness.tapscript() else {
-        continue;
-      };
-
-      for instruction in tapscript.instructions() {
-        // ignore errors, since the extracted script may not be valid
-        let Ok(instruction) = instruction else {
-          break;
-        };
-
-        let Some(pushbytes) = instruction.push_bytes() else {
-          continue;
-        };
-
-        if pushbytes.as_bytes() != commitment {
-          continue;
-        }
-
-        let Some(tx_info) = self
-          .client
-          .get_raw_transaction_info(&input.previous_output.txid, None)
-          .into_option()?
-        else {
-          panic!(
-            "can't get input transaction: {}",
-            input.previous_output.txid
-          );
-        };
-
-        let taproot = tx_info.vout[input.previous_output.vout.into_usize()]
-          .script_pub_key
-          .script()?
-          .is_v1_p2tr();
-
-        if !taproot {
-          continue;
-        }
-
-        let commit_tx_height = self
-          .client
-          .get_block_header_info(&tx_info.blockhash.unwrap())
-          .into_option()?
-          .unwrap()
-          .height;
-
-        let confirmations = self
-          .height
-          .checked_sub(commit_tx_height.try_into().unwrap())
-          .unwrap()
-          + 1;
-
-        if confirmations >= Runestone::COMMIT_CONFIRMATIONS.into() {
-          return Ok(true);
-        }
-      }
-    }
-
-    Ok(false)
   }
 
   fn unallocated(&mut self, tx: &Transaction) -> Result<HashMap<RuneId, Lot>> {
