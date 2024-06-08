@@ -40,14 +40,23 @@ struct ErrorMsg {
   message: String,
 }
 
-pub(crate) async fn make_rpc<R>(
+/// the [start, end) range is ok if end=total
+fn split(end: u64, total: u64, limit: u64) -> (u64, u64) {
+  let start = end;
+  let end = if start + limit > total {
+    total
+  } else {
+    start + limit
+  };
+  (start, end)
+}
+
+fn partial_request(
   url: impl ToString,
   endpoint: &'static str,
   params: impl Into<serde_json::Value>,
-) -> Result<R>
-where
-  R: for<'a> Deserialize<'a> + std::fmt::Debug,
-{
+  range: (u64, u64),
+) -> CanisterHttpRequestArgument {
   let payload = Payload {
     jsonrpc: "1.0",
     id: "btc0",
@@ -55,7 +64,7 @@ where
     params: params.into(),
   };
   let body = serde_json::to_vec(&payload).unwrap();
-  let args = CanisterHttpRequestArgument {
+  CanisterHttpRequestArgument {
     url: url.to_string(),
     method: HttpMethod::POST,
     body: Some(body),
@@ -70,20 +79,69 @@ where
         name: "User-Agent".to_string(),
         value: format!("omnity_ord_canister/{}", env!("CARGO_PKG_VERSION")),
       },
+      HttpHeader {
+        name: "Range".to_string(),
+        value: format!("bytes={}-{}", range.0, range.1),
+      },
     ],
-  };
-  // TODO max cycle ~ 1000_000_000_000
-  let (response,) = http_request(args, 1_000_000_000_000)
-    .await
-    .map_err(|(_, e)| OrdError::Rpc(RpcError::Io(endpoint.as_ref(), url.to_string(), e)))?;
-  let reply: Reply<R> = serde_json::from_slice(response.body.as_slice()).map_err(|e| {
+  }
+}
+
+const MAX_RESPONSE_BYTES: u64 = 1_995_000;
+// TODO max cycle ~ 1000_000_000_000
+const MAX_CYCLES: u128 = 1_000_000_000_000;
+
+pub(crate) async fn make_rpc<R>(
+  url: impl ToString,
+  endpoint: &'static str,
+  params: impl Into<serde_json::Value> + Clone,
+) -> Result<R>
+where
+  R: for<'a> Deserialize<'a> + std::fmt::Debug,
+{
+  let mut range = (0, MAX_RESPONSE_BYTES);
+  let mut buf = Vec::<u8>::with_capacity(MAX_RESPONSE_BYTES as usize);
+  loop {
+    let args = partial_request(url.to_string(), endpoint, params.clone(), range);
+    let (response,) = http_request(args, MAX_CYCLES)
+      .await
+      .map_err(|(_, e)| OrdError::Rpc(RpcError::Io(endpoint.as_ref(), url.to_string(), e)))?;
+    if response.status == 200 {
+      buf.extend_from_slice(response.body.as_slice());
+      break;
+    }
+    if let Some(new_range) = response
+      .headers
+      .iter()
+      .find(|h| h.name == "Content-Range")
+      .map(|r| -> Option<(u64, u64)> {
+        let r = r.value.trim_start_matches("bytes ");
+        let range_and_total = r.split('/').collect::<Vec<&str>>();
+        let total = range_and_total[1].parse::<u64>().ok()?;
+        let range = range_and_total[0].split('-').collect::<Vec<&str>>();
+        let end = range[1].parse::<u64>().ok()?;
+        Some(split(end, total, MAX_RESPONSE_BYTES))
+      })
+      .flatten()
+    {
+      range = new_range;
+      buf.extend_from_slice(response.body.as_slice());
+      if range.0 == range.1 {
+        break;
+      }
+    } else {
+      // some unexpected behaviour since we are not going to compatible with all servers
+      buf.extend_from_slice(response.body.as_slice());
+      break;
+    }
+  }
+  let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       endpoint.as_ref(),
       url.to_string(),
       e.to_string(),
     ))
   })?;
-  ic_cdk::println!("{:?}", reply);
   if reply.error.is_some() {
     return Err(OrdError::Rpc(RpcError::Endpoint(
       endpoint.as_ref(),

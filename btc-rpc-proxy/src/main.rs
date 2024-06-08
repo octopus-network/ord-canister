@@ -45,7 +45,7 @@ async fn forward(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infall
             .iter()
             .copied()
             .collect::<Vec<u8>>();
-          if body.len() < end - start + 1 || body.len() < end {
+          if body.len() <= end - start {
             Ok(
               Response::builder()
                 .status(StatusCode::OK)
@@ -53,7 +53,11 @@ async fn forward(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infall
                 .unwrap(),
             )
           } else {
-            let partial = body[start..end].to_vec();
+            let partial = if end >= body.len() {
+              body[start..].to_vec()
+            } else {
+              body[start..end].to_vec()
+            };
             Ok(
               Response::builder()
                 .status(StatusCode::PARTIAL_CONTENT)
