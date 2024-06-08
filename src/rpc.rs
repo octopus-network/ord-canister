@@ -40,13 +40,14 @@ struct ErrorMsg {
   message: String,
 }
 
-/// the [start, end) range is ok if end=total
+/// [   0..1023] + [1024..2047] + [2048..3071] = 3072
+/// [start, end] + [start, end] + [start, end] = total
 fn split(end: u64, total: u64, limit: u64) -> (u64, u64) {
-  let start = end;
-  let end = if start + limit > total {
-    total
+  let start = end + 1;
+  let end = if start + limit >= total {
+    total - 1
   } else {
-    start + limit
+    start + limit - 1
   };
   (start, end)
 }
@@ -126,7 +127,7 @@ where
     {
       range = new_range;
       buf.extend_from_slice(response.body.as_slice());
-      if range.0 == range.1 {
+      if range.0 >= range.1 {
         break;
       }
     } else {

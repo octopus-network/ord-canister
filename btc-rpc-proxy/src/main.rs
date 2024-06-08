@@ -18,7 +18,7 @@ fn debug_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infall
 }
 
 fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
-  if let Ok(range_control) = req.headers()[RANGE].to_str() {
+  if let Some(range_control) = req.headers().get(RANGE).map(|v| v.to_str().ok()).flatten() {
     let range = range_control
       .trim_start_matches("bytes=")
       .split('-')
@@ -56,7 +56,7 @@ async fn forward(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infall
             let partial = if end >= body.len() {
               body[start..].to_vec()
             } else {
-              body[start..end].to_vec()
+              body[start..=end].to_vec()
             };
             Ok(
               Response::builder()
