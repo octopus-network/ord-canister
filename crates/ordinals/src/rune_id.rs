@@ -1,4 +1,5 @@
 use super::*;
+use candid::CandidType;
 use ic_stable_memory::{AsFixedSizeBytes, StableType};
 
 #[derive(
@@ -13,6 +14,7 @@ use ic_stable_memory::{AsFixedSizeBytes, StableType};
   Default,
   DeserializeFromStr,
   SerializeDisplay,
+  CandidType,
 )]
 pub struct RuneId {
   pub block: u64,

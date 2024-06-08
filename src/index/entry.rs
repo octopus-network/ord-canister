@@ -1,4 +1,5 @@
-use crate::{index::*, *};
+use crate::index::*;
+use candid::CandidType;
 use core2::io::Cursor;
 use ic_stable_memory::{AsFixedSizeBytes, StableType};
 
@@ -10,7 +11,7 @@ pub(crate) trait Entry: Sized {
   fn store(self) -> Self::Value;
 }
 
-#[derive(Copy, Eq, PartialEq, Clone, Debug)]
+#[derive(Copy, Eq, PartialEq, Clone, Debug, CandidType)]
 pub struct RuneBalance {
   pub id: RuneId,
   pub balance: u128,
@@ -164,27 +165,27 @@ impl AsFixedSizeBytes for RuneEntry {
 impl StableType for RuneEntry {}
 
 impl RuneEntry {
-  pub fn mintable(&self, height: u64) -> Result<u128, MintError> {
+  pub fn mintable(&self, height: u64) -> Result<u128> {
     let Some(terms) = self.terms else {
-      return Err(MintError::Unmintable);
+      return Err(OrdError::Index(MintError::Unmintable));
     };
 
     if let Some(start) = self.start() {
       if height < start {
-        return Err(MintError::Start(start));
+        return Err(OrdError::Index(MintError::Start(start)));
       }
     }
 
     if let Some(end) = self.end() {
       if height >= end {
-        return Err(MintError::End(end));
+        return Err(OrdError::Index(MintError::End(end)));
       }
     }
 
     let cap = terms.cap.unwrap_or_default();
 
     if self.mints >= cap {
-      return Err(MintError::Cap(cap));
+      return Err(OrdError::Index(MintError::Cap(cap)));
     }
 
     Ok(terms.amount.unwrap_or_default())
@@ -686,7 +687,10 @@ mod tests {
 
   #[test]
   fn mintable_default() {
-    assert_eq!(RuneEntry::default().mintable(0), Err(MintError::Unmintable));
+    assert_eq!(
+      RuneEntry::default().mintable(0),
+      Err(OrdError::Index(MintError::Unmintable))
+    );
   }
 
   #[test]
@@ -716,7 +720,7 @@ mod tests {
         ..default()
       }
       .mintable(0),
-      Err(MintError::Cap(1)),
+      Err(OrdError::Index(MintError::Cap(1))),
     );
 
     assert_eq!(
@@ -730,7 +734,7 @@ mod tests {
         ..default()
       }
       .mintable(0),
-      Err(MintError::Cap(0)),
+      Err(OrdError::Index(MintError::Cap(0))),
     );
   }
 
@@ -749,7 +753,7 @@ mod tests {
         ..default()
       }
       .mintable(1),
-      Err(MintError::Start(2)),
+      Err(OrdError::Index(MintError::Start(2))),
     );
 
     assert_eq!(
@@ -800,7 +804,7 @@ mod tests {
         ..default()
       }
       .mintable(2),
-      Err(MintError::End(2)),
+      Err(OrdError::Index(MintError::End(2))),
     );
   }
 
@@ -818,7 +822,7 @@ mod tests {
         ..default()
       }
       .mintable(0),
-      Err(MintError::Start(1)),
+      Err(OrdError::Index(MintError::Start(1))),
     );
 
     assert_eq!(
@@ -866,7 +870,7 @@ mod tests {
         ..default()
       }
       .mintable(1),
-      Err(MintError::End(1)),
+      Err(OrdError::Index(MintError::End(1))),
     );
   }
 
@@ -889,31 +893,37 @@ mod tests {
     {
       let mut entry = entry;
       entry.terms.as_mut().unwrap().cap = None;
-      assert_eq!(entry.mintable(10), Err(MintError::Cap(0)));
+      assert_eq!(entry.mintable(10), Err(OrdError::Index(MintError::Cap(0))));
     }
 
     {
       let mut entry = entry;
       entry.terms.as_mut().unwrap().height.0 = Some(11);
-      assert_eq!(entry.mintable(10), Err(MintError::Start(11)));
+      assert_eq!(
+        entry.mintable(10),
+        Err(OrdError::Index(MintError::Start(11)))
+      );
     }
 
     {
       let mut entry = entry;
       entry.terms.as_mut().unwrap().height.1 = Some(10);
-      assert_eq!(entry.mintable(10), Err(MintError::End(10)));
+      assert_eq!(entry.mintable(10), Err(OrdError::Index(MintError::End(10))));
     }
 
     {
       let mut entry = entry;
       entry.terms.as_mut().unwrap().offset.0 = Some(1);
-      assert_eq!(entry.mintable(10), Err(MintError::Start(11)));
+      assert_eq!(
+        entry.mintable(10),
+        Err(OrdError::Index(MintError::Start(11)))
+      );
     }
 
     {
       let mut entry = entry;
       entry.terms.as_mut().unwrap().offset.1 = Some(0);
-      assert_eq!(entry.mintable(10), Err(MintError::End(10)));
+      assert_eq!(entry.mintable(10), Err(OrdError::Index(MintError::End(10))));
     }
   }
 

@@ -1,0 +1,23 @@
+{
+  "canisters": {
+    "ord-indexer": {
+      "gzip": true,
+      "candid": "ord_indexer.did",
+      "package": "ord-canister",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "",
+      "args": ""
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8777"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

@@ -1,7 +1,4 @@
-use crate::{
-  index::{entry::RuneBalance, *},
-  *,
-};
+use crate::index::{entry::RuneBalance, *};
 use ic_stable_memory::collections::SVec;
 use std::collections::HashMap;
 
@@ -225,7 +222,7 @@ impl RuneUpdater {
     Ok(())
   }
 
-  pub(super) fn update(self) -> Result {
+  pub(super) fn update(self) -> Result<()> {
     for (rune_id, burned) in self.burned {
       let mut entry = crate::rune_id_to_rune_entry(|r| *r.get(&rune_id).unwrap());
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
@@ -241,7 +238,7 @@ impl RuneUpdater {
     artifact: &Artifact,
     id: RuneId,
     rune: Rune,
-  ) -> Result {
+  ) -> Result<()> {
     crate::rune_to_rune_id(|r| r.insert(rune.store(), id));
     crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0));
 

@@ -1,6 +1,6 @@
-use super::*;
+use candid::CandidType;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, CandidType)]
 pub enum MintError {
   Cap(u128),
   End(u64),
@@ -8,8 +8,8 @@ pub enum MintError {
   Unmintable,
 }
 
-impl core::fmt::Display for MintError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl std::fmt::Display for MintError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       MintError::Cap(cap) => write!(f, "limited to {cap} mints"),
       MintError::End(end) => write!(f, "mint ended on block {end}"),

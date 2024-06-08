@@ -1,12 +1,5 @@
 use {
-  self::{
-    entry::{
-      Entry, HeaderValue, OutPointValue, RuneEntryValue, RuneIdValue, SatPointValue, SatRange,
-      TxOutValue, TxidValue,
-    },
-    event::Event,
-    lot::Lot,
-  },
+  self::{entry::Entry, event::Event, lot::Lot},
   super::{runes::MintError, *},
   bitcoin::block::Header,
   std::collections::BTreeMap,
@@ -58,12 +51,46 @@ pub(crate) fn get_rune_balances_for_output(
     None => Ok(BTreeMap::new()),
   })
 }
-// TODO handle best > height
-pub(crate) async fn get_block(height: u32) -> Result<Option<BlockData>> {
+
+pub(crate) async fn get_highest_from_rpc() -> Result<(u32, BlockHash)> {
+  let url = get_url();
+  let hash = rpc::get_best_block_hash(&url).await?;
+  let header = rpc::get_block_header(&url, hash).await?;
+  Ok((header.height.try_into().expect("usize to u32"), hash))
 }
 
-pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
-
-pub async fn index() {
-  updater::get_block()
+pub fn sync(secs: u64) {
+  ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
+    ic_cdk::spawn(async move {
+      let (height, _) = crate::highest_block_hash();
+      ic_cdk::println!("local height {}", height);
+      match get_highest_from_rpc().await {
+        Ok((best, hash)) => {
+          ic_cdk::println!("get best height {}", best);
+          if height + REQUIRED_CONFIRMATIONS > best {
+            sync(60);
+          } else {
+            match updater::get_block(height + 1).await {
+              Ok(block) => {
+                // TODO verify
+                ic_cdk::println!("indexing block {:?}", block.header);
+                if let Err(e) = updater::index_block(height + 1, hash, block).await {
+                  ic_cdk::println!("index error: {:?}", e);
+                }
+                sync(0);
+              }
+              Err(e) => {
+                ic_cdk::println!("error: {:?}", e);
+                sync(3);
+              }
+            }
+          }
+        }
+        Err(e) => {
+          ic_cdk::println!("error: {:?}", e);
+          sync(3);
+        }
+      }
+    });
+  });
 }

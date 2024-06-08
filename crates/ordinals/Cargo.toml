@@ -16,6 +16,7 @@ serde_with = "3.7.0"
 thiserror = "1.0.56"
 core2 = { version = "0.3.0", default-features = false, features = ["alloc"] }
 ic-stable-memory = "0.4"
+candid = "0.9"
 
 [dev-dependencies]
 serde_json = { version = "1.0.81", features = ["preserve_order"] }

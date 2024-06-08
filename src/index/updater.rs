@@ -25,14 +25,7 @@ impl From<Block> for BlockData {
   }
 }
 
-// TODO handle best > height
-pub(crate) async fn get_block(height: u32) -> Result<Option<BlockData>> {
-  let hash = rpc::get_block_hash(height).await?;
-  let block = rpc::get_block(hash).await?;
-  Ok(Some(BlockData::from(block)))
-}
-
-pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
+pub(crate) async fn index_block(height: u32, hash: BlockHash, block: BlockData) -> Result<()> {
   let mut updater = RuneUpdater {
     block_time: block.header.time,
     burned: HashMap::new(),
@@ -47,5 +40,13 @@ pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
   }
 
   updater.update()?;
+  index::increase_height(height, hash);
   Ok(())
+}
+
+pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
+  let url = get_url();
+  let hash = rpc::get_block_hash(&url, height).await?;
+  let block = rpc::get_block(&url, hash).await?;
+  Ok(BlockData::from(block))
 }
