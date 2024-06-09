@@ -5,4 +5,4 @@ COPY . .
 
 RUN cargo install --path btc-rpc-proxy/
 
-CMD ["btc-rpc-proxy --forward https://go.getblock.io"]
+CMD ["/usr/local/cargo/bin/btc-rpc-proxy", "--forward", "https://go.getblock.io"]
