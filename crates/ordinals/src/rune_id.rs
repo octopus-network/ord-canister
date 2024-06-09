@@ -28,7 +28,7 @@ impl AsFixedSizeBytes for RuneId {
 
   fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
     let mut offset = 0;
-    self.block.as_fixed_size_bytes(&mut buf[offset..]);
+    self.block.as_fixed_size_bytes(&mut buf[offset..offset + 8]);
     offset += 8;
     self.tx.as_fixed_size_bytes(&mut buf[offset..]);
   }

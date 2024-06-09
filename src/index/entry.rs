@@ -24,7 +24,9 @@ impl AsFixedSizeBytes for RuneBalance {
 
   fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
     let mut offset = 0;
-    self.id.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .id
+      .as_fixed_size_bytes(&mut buf[offset..offset + RuneId::SIZE]);
     offset += RuneId::SIZE;
     self.balance.as_fixed_size_bytes(&mut buf[offset..]);
   }
@@ -95,27 +97,46 @@ impl AsFixedSizeBytes for RuneEntry {
 
   fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
     let mut offset = 0;
-    self.block.as_fixed_size_bytes(&mut buf[offset..]);
+    self.block.as_fixed_size_bytes(&mut buf[offset..offset + 8]);
     offset += 8;
-    self.burned.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .burned
+      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
     offset += 16;
-    self.divisibility.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .divisibility
+      .as_fixed_size_bytes(&mut buf[offset..offset + 1]);
     offset += 1;
-    self.etching.store().as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .etching
+      .store()
+      .as_fixed_size_bytes(&mut buf[offset..offset + 32]);
     offset += 32;
-    self.mints.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .mints
+      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
     offset += 16;
     // self.number.as_fixed_size_bytes(&mut buf[offset..]);
     // offset += 8;
-    self.premine.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .premine
+      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
     offset += 16;
-    self.spaced_rune.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .spaced_rune
+      .as_fixed_size_bytes(&mut buf[offset..offset + SpacedRune::SIZE]);
     offset += SpacedRune::SIZE;
-    self.symbol.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .symbol
+      .as_fixed_size_bytes(&mut buf[offset..offset + 5]);
     offset += 5;
-    self.terms.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .terms
+      .as_fixed_size_bytes(&mut buf[offset..offset + Terms::SIZE + 1]);
     offset += Terms::SIZE + 1;
-    self.timestamp.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .timestamp
+      .as_fixed_size_bytes(&mut buf[offset..offset + 8]);
     offset += 8;
     self.turbo.as_fixed_size_bytes(&mut buf[offset..]);
   }

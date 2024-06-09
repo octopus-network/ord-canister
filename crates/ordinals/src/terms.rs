@@ -16,15 +16,26 @@ impl AsFixedSizeBytes for Terms {
 
   fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
     let mut offset = 0;
-    self.amount.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .amount
+      .as_fixed_size_bytes(&mut buf[offset..offset + 17]);
     offset += 17;
-    self.cap.as_fixed_size_bytes(&mut buf[offset..]);
+    self.cap.as_fixed_size_bytes(&mut buf[offset..offset + 17]);
     offset += 17;
-    self.height.0.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .height
+      .0
+      .as_fixed_size_bytes(&mut buf[offset..offset + 9]);
     offset += 9;
-    self.height.1.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .height
+      .1
+      .as_fixed_size_bytes(&mut buf[offset..offset + 9]);
     offset += 9;
-    self.offset.0.as_fixed_size_bytes(&mut buf[offset..]);
+    self
+      .offset
+      .0
+      .as_fixed_size_bytes(&mut buf[offset..offset + 9]);
     offset += 9;
     self.offset.1.as_fixed_size_bytes(&mut buf[offset..]);
   }

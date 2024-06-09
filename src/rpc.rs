@@ -114,7 +114,7 @@ where
     if let Some(new_range) = response
       .headers
       .iter()
-      .find(|h| h.name == "Content-Range")
+      .find(|h| h.name.eq_ignore_ascii_case("Content-Range"))
       .map(|r| -> Option<(u64, u64)> {
         let r = r.value.trim_start_matches("bytes ");
         let range_and_total = r.split('/').collect::<Vec<&str>>();
@@ -125,6 +125,7 @@ where
       })
       .flatten()
     {
+      ic_cdk::println!("bytes range: {:?} => {:?}", range, new_range);
       range = new_range;
       buf.extend_from_slice(response.body.as_slice());
       if range.0 >= range.1 {
@@ -136,6 +137,7 @@ where
       break;
     }
   }
+  ic_cdk::println!("reading all {} bytes from rpc", buf.len());
   let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       endpoint.as_ref(),
