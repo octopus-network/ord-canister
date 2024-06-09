@@ -1,5 +1,7 @@
+mod cli;
 mod proxy;
 
+use clap::Parser;
 use http_body_util::BodyExt;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -10,12 +12,6 @@ use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-
-fn debug_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-  let body_str = format!("{:?}", req);
-  println!("{}", body_str);
-  Ok(Response::new(Full::from("No stream found")))
-}
 
 fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   if let Some(range_control) = req.headers().get(RANGE).map(|v| v.to_str().ok()).flatten() {
@@ -31,73 +27,74 @@ fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   }
 }
 
-async fn forward(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-  println!("{:?}", req);
-  if req.uri().path().starts_with("/") {
-    let if_range = try_match_range_header(&req);
-    match proxy::call("https://go.getblock.io", req).await {
-      Ok(response) => match if_range {
-        Some((start, end)) => {
-          let body = response
-            .collect()
-            .await?
-            .to_bytes()
-            .iter()
-            .copied()
-            .collect::<Vec<u8>>();
-          if body.len() <= end - start {
-            Ok(
-              Response::builder()
-                .status(StatusCode::OK)
-                .body(Full::from(body))
-                .unwrap(),
-            )
+async fn forward(
+  target: impl AsRef<str>,
+  req: Request<Incoming>,
+) -> Result<Response<Full<Bytes>>, Infallible> {
+  let if_range = try_match_range_header(&req);
+  match proxy::call(target.as_ref(), req).await {
+    Ok(response) => match if_range {
+      Some((start, end)) => {
+        let body = response
+          .collect()
+          .await?
+          .to_bytes()
+          .iter()
+          .copied()
+          .collect::<Vec<u8>>();
+        if body.len() <= end - start {
+          Ok(
+            Response::builder()
+              .status(StatusCode::OK)
+              .body(Full::from(body))
+              .unwrap(),
+          )
+        } else {
+          let partial = if end >= body.len() {
+            body[start..].to_vec()
           } else {
-            let partial = if end >= body.len() {
-              body[start..].to_vec()
-            } else {
-              body[start..=end].to_vec()
-            };
-            Ok(
-              Response::builder()
-                .status(StatusCode::PARTIAL_CONTENT)
-                .header(
-                  "Content-Range",
-                  format!("bytes {}-{}/{}", start, end, body.len()),
-                )
-                .body(Full::from(Bytes::from(partial)))
-                .unwrap(),
-            )
-          }
+            body[start..=end].to_vec()
+          };
+          Ok(
+            Response::builder()
+              .status(StatusCode::PARTIAL_CONTENT)
+              .header(
+                "Content-Range",
+                format!("bytes {}-{}/{}", start, end, body.len()),
+              )
+              .body(Full::from(Bytes::from(partial)))
+              .unwrap(),
+          )
         }
-        None => Ok(response),
-      },
-      Err(error) => {
-        println!("{:?}", error);
-        Ok(
-          Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Full::from(Bytes::from("Internal Server Error")))
-            .unwrap(),
-        )
       }
+      None => Ok(response),
+    },
+    Err(error) => {
+      println!("{:?}", error);
+      Ok(
+        Response::builder()
+          .status(StatusCode::INTERNAL_SERVER_ERROR)
+          .body(Full::from(Bytes::from("Internal Server Error")))
+          .unwrap(),
+      )
     }
-  } else {
-    debug_request(req)
   }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-  env_logger::init();
-  let addr = SocketAddr::from(([0, 0, 0, 0], 8000));
+  let args = cli::Cli::parse();
+  let addr = SocketAddr::from((args.run.addr, args.run.port));
+  let target = args.run.forward;
   let listener = TcpListener::bind(addr).await?;
   loop {
+    let target = target.clone();
     let (stream, _) = listener.accept().await?;
     let io = TokioIo::new(stream);
     tokio::task::spawn(async move {
+      let f = |req| async { forward(&target, req).await };
       if let Err(err) = http1::Builder::new()
-        .serve_connection(io, service_fn(forward))
+        .serve_connection(io, service_fn(f))
         .await
       {
         eprintln!("Error serving connection: {:?}", err);

@@ -3,19 +3,15 @@ use http_body_util::BodyExt;
 use http_body_util::Full;
 use hyper::body::Incoming;
 use hyper::header::{HeaderMap, HeaderValue};
-use hyper::http::header::{InvalidHeaderValue, ToStrError};
 use hyper::http::uri::InvalidUri;
-use hyper::{Error, Request, Response, Uri};
+use hyper::{Request, Response, Uri};
 use hyper_util::{client::legacy::Client, rt::TokioExecutor};
 use lazy_static::lazy_static;
-use std::net::IpAddr;
-use std::str::FromStr;
 
 #[derive(Debug)]
 pub enum ProxyError {
   InvalidUri(InvalidUri),
-  HyperError(Error),
-  ForwardHeaderError,
+  HyperError(hyper::Error),
   Forwarding(hyper_util::client::legacy::Error),
 }
 
@@ -25,8 +21,8 @@ impl From<hyper_util::client::legacy::Error> for ProxyError {
   }
 }
 
-impl From<Error> for ProxyError {
-  fn from(err: Error) -> ProxyError {
+impl From<hyper::Error> for ProxyError {
+  fn from(err: hyper::Error) -> ProxyError {
     ProxyError::HyperError(err)
   }
 }
@@ -34,18 +30,6 @@ impl From<Error> for ProxyError {
 impl From<InvalidUri> for ProxyError {
   fn from(err: InvalidUri) -> ProxyError {
     ProxyError::InvalidUri(err)
-  }
-}
-
-impl From<ToStrError> for ProxyError {
-  fn from(_err: ToStrError) -> ProxyError {
-    ProxyError::ForwardHeaderError
-  }
-}
-
-impl From<InvalidHeaderValue> for ProxyError {
-  fn from(_err: InvalidHeaderValue) -> ProxyError {
-    ProxyError::ForwardHeaderError
   }
 }
 
@@ -113,10 +97,9 @@ async fn transform_request(
 ) -> Result<Request<Full<Bytes>>, ProxyError> {
   *request.headers_mut() = remove_hop_headers(request.headers());
   *request.uri_mut() = forward_uri(host, &request)?;
-  let (mut p, b) = request.into_parts();
+  let (p, b) = request.into_parts();
   let bytes = b.collect().await?.to_bytes();
   let request = Request::from_parts(p, Full::from(bytes));
-  println!("{:?}", request);
   Ok(request)
 }
 
