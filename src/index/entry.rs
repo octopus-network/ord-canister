@@ -417,7 +417,7 @@ impl Entry for RuneId {
   }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Copy)]
+#[derive(Clone, Eq, PartialEq, Hash, Copy, Debug)]
 pub(crate) struct OutPointValue(pub [u8; 36]);
 
 impl Entry for OutPoint {
@@ -452,10 +452,10 @@ impl AsFixedSizeBytes for OutPointValue {
 
 impl StableType for OutPointValue {}
 
-pub(crate) type TxOutValue = (
-  u64,     // value
-  Vec<u8>, // script_pubkey
-);
+// pub(crate) type TxOutValue = (
+//   u64,     // value
+//   Vec<u8>, // script_pubkey
+// );
 
 // impl Entry for TxOut {
 //   type Value = TxOutValue;
@@ -515,7 +515,7 @@ impl Entry for SatRange {
   }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct TxidValue(pub [u8; 32]);
 
 impl Entry for Txid {

@@ -1,6 +1,6 @@
 use crate::{OrdError, RuneBalance};
 use candid::{CandidType, Deserialize, Principal};
-use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query, update};
+use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query};
 
 #[query]
 pub fn get_runes_by_utxo(txid: String, vout: u32) -> Result<Vec<RuneBalance>, OrdError> {

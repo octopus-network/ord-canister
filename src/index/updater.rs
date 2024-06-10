@@ -48,5 +48,8 @@ pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
   let url = get_url();
   let hash = rpc::get_block_hash(&url, height).await?;
   let block = rpc::get_block(&url, hash).await?;
-  Ok(BlockData::from(block))
+  block
+    .check_merkle_root()
+    .then(|| BlockData::from(block))
+    .ok_or(OrdError::BlockVerification(height))
 }

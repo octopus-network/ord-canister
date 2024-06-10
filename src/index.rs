@@ -62,17 +62,20 @@ pub(crate) async fn get_highest_from_rpc() -> Result<(u32, BlockHash)> {
 pub fn sync(secs: u64) {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
     ic_cdk::spawn(async move {
-      let (height, _) = crate::highest_block_hash();
-      ic_cdk::println!("local height {}", height);
+      let (height, current) = crate::highest_block_hash();
       match get_highest_from_rpc().await {
         Ok((best, hash)) => {
-          ic_cdk::println!("get best height {}", best);
+          ic_cdk::println!("our best = {}, their best = {}", height, best);
           if height + REQUIRED_CONFIRMATIONS > best {
             sync(60);
           } else {
             match updater::get_block(height + 1).await {
               Ok(block) => {
-                // TODO verify
+                if block.header.prev_blockhash != current {
+                  ic_cdk::println!("reorg detected! our best = {}({})", height, current);
+                  sync(60);
+                  return;
+                }
                 ic_cdk::println!("indexing block {:?}", block.header);
                 if let Err(e) = updater::index_block(height + 1, hash, block).await {
                   ic_cdk::println!("index error: {:?}", e);

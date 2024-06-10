@@ -33,6 +33,8 @@ pub(crate) type Result<T> = std::result::Result<T, OrdError>;
 pub enum OrdError {
   #[error("overflow")]
   Overflow,
+  #[error("block verification")]
+  BlockVerification(u32),
   #[error("index error: {0}")]
   Index(runes::MintError),
   #[error("rpc error: {0}")]
@@ -64,13 +66,14 @@ pub(crate) fn highest_block_hash() -> (u32, BlockHash) {
 
 pub(crate) fn increase_height(height: u32, hash: BlockHash) {
   crate::HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| {
-    h.insert(height, *hash.as_ref());
+    h.insert(height, *hash.as_ref()).expect("MemoryOverflow");
   });
 }
 
 pub(crate) fn set_beginning_block() {
   crate::HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| {
-    h.insert(FIRST_HEIGHT, FIRST_BLOCK_HASH);
+    h.insert(FIRST_HEIGHT, FIRST_BLOCK_HASH)
+      .expect("MemoryOverflow");
   });
 }
 

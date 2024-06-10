@@ -24,12 +24,12 @@ impl RuneUpdater {
           *unallocated.entry(id).or_default() += amount;
 
           if let Some(handler) = &self.event_handler {
-            // sender.blocking_send(Event::RuneMinted {
-            //     block_height: self.height,
-            //     txid,
-            //     rune_id: id,
-            //     amount: amount.n(),
-            // })?;
+            handler(Event::RuneMinted {
+              block_height: self.height,
+              txid,
+              rune_id: id,
+              amount: amount.n(),
+            });
           }
         }
       }
@@ -186,22 +186,23 @@ impl RuneUpdater {
       };
       let mut vec = SVec::new_with_capacity(balances.len()).expect("out of memory");
       for (id, balance) in balances {
-        vec.push(RuneBalance {
-          id,
-          balance: balance.0,
-        });
+        vec
+          .push(RuneBalance {
+            id,
+            balance: balance.0,
+          })
+          .expect("MemoryOverflow");
         if let Some(handler) = &self.event_handler {
-          // TODO
-          // sender.blocking_send(Event::RuneTransferred {
-          //   outpoint,
-          //   block_height: self.height,
-          //   txid,
-          //   rune_id: id,
-          //   amount: balance.0,
-          // })?;
+          handler(Event::RuneTransferred {
+            outpoint,
+            block_height: self.height,
+            txid,
+            rune_id: id,
+            amount: balance.0,
+          });
         }
       }
-      outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec));
+      outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec)).expect("MemoryOverflow");
     }
 
     // increment entries with burned runes
@@ -209,13 +210,12 @@ impl RuneUpdater {
       *self.burned.entry(id).or_default() += amount;
 
       if let Some(handler) = &self.event_handler {
-        // TODO
-        // sender.blocking_send(Event::RuneBurned {
-        //   block_height: self.height,
-        //   txid,
-        //   rune_id: id,
-        //   amount: amount.n(),
-        // })?;
+        handler(Event::RuneBurned {
+          block_height: self.height,
+          txid,
+          rune_id: id,
+          amount: amount.n(),
+        });
       }
     }
 
@@ -226,7 +226,7 @@ impl RuneUpdater {
     for (rune_id, burned) in self.burned {
       let mut entry = crate::rune_id_to_rune_entry(|r| *r.get(&rune_id).unwrap());
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
-      crate::rune_id_to_rune_entry(|r| r.insert(rune_id, entry));
+      crate::rune_id_to_rune_entry(|r| r.insert(rune_id, entry)).expect("MemoryOverflow");
     }
 
     Ok(())
@@ -239,8 +239,8 @@ impl RuneUpdater {
     id: RuneId,
     rune: Rune,
   ) -> Result<()> {
-    crate::rune_to_rune_id(|r| r.insert(rune.store(), id));
-    crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0));
+    crate::rune_to_rune_id(|r| r.insert(rune.store(), id)).expect("MemoryOverflow");
+    crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0)).expect("MemoryOverflow");
 
     let entry = match artifact {
       Artifact::Cenotaph(_) => RuneEntry {
@@ -286,7 +286,7 @@ impl RuneUpdater {
       }
     };
 
-    crate::rune_id_to_rune_entry(|r| r.insert(id, entry));
+    crate::rune_id_to_rune_entry(|r| r.insert(id, entry)).expect("Overflow");
 
     match &self.event_handler {
       Some(handler) => handler(Event::RuneEtched {
@@ -350,7 +350,7 @@ impl RuneUpdater {
 
     rune_entry.mints += 1;
 
-    crate::rune_id_to_rune_entry(|r| r.insert(id, rune_entry));
+    crate::rune_id_to_rune_entry(|r| r.insert(id, rune_entry)).expect("MemoryOverflow");
 
     Ok(Some(Lot(amount)))
   }

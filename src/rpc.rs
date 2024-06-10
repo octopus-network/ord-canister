@@ -205,12 +205,3 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
   consensus::encode::deserialize(&hex)
     .map_err(|e| OrdError::Rpc(RpcError::Decode("getblock", url.to_string(), e.to_string())))
 }
-
-pub(crate) async fn get_block_info(url: &str, hash: BlockHash) -> Result<GetBlockResult> {
-  make_rpc::<GetBlockResult>(
-    url,
-    "getblock",
-    serde_json::json!([format!("{:x}", hash), 1]),
-  )
-  .await
-}
