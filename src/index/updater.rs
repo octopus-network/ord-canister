@@ -25,22 +25,19 @@ impl From<Block> for BlockData {
   }
 }
 
-pub(crate) async fn index_block(height: u32, hash: BlockHash, block: BlockData) -> Result<()> {
+pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
   let mut updater = RuneUpdater {
     block_time: block.header.time,
     burned: HashMap::new(),
-    // TODO
     event_handler: None,
     height,
     minimum: Rune::minimum_at_height(Network::Bitcoin, Height(height)),
   };
-
   for (i, (tx, txid)) in block.txdata.iter().enumerate() {
     updater.index_runes(u32::try_from(i).unwrap(), tx, *txid)?;
   }
-
   updater.update()?;
-  index::increase_height(height, hash);
+  index::increase_height(height, block.header.block_hash());
   Ok(())
 }
 

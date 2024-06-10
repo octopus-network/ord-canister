@@ -18,6 +18,7 @@ pub use bitcoin::{
   Txid, Witness,
 };
 use candid::CandidType;
+use core2::io::Cursor;
 use ic_stable_memory::collections::{SBTreeMap, SHashMap, SVec};
 pub use index::entry::{RuneBalance, RuneEntry};
 pub use ordinals::{
@@ -31,6 +32,8 @@ pub(crate) type Result<T> = std::result::Result<T, OrdError>;
 
 #[derive(Debug, Error, CandidType)]
 pub enum OrdError {
+  #[error("params: {0}")]
+  Params(String),
   #[error("overflow")]
   Overflow,
   #[error("block verification")]
@@ -51,28 +54,27 @@ thread_local! {
 }
 
 pub const REQUIRED_CONFIRMATIONS: u32 = 4;
-pub const FIRST_HEIGHT: u32 = 840000;
-pub const FIRST_BLOCK_HASH: [u8; 32] =
-  hex_literal::hex!("0000000000000000000320283a032748cef8227873ff4872689bf23f1cda83a5");
+pub const FIRST_HEIGHT: u32 = 839999;
+pub const FIRST_BLOCK_HASH: &'static str =
+  "0000000000000000000172014ba58d66455762add0512355ad651207918494ab";
 
-pub(crate) fn highest_block_hash() -> (u32, BlockHash) {
+pub(crate) fn highest_block() -> (u32, BlockHash) {
   crate::HEIGHT_TO_BLOCK_HASH.with_borrow(|h| {
     let (height, hash) = h.iter().rev().next().expect("not initialized");
-    let hash =
-      BlockHash::from_raw_hash(bitcoin::hashes::sha256d::Hash::from_slice(&*hash).unwrap());
+    let mut buffer = Cursor::new(*hash);
+    let hash = BlockHash::consensus_decode(&mut buffer).unwrap();
     (*height, hash)
   })
 }
 
 pub(crate) fn increase_height(height: u32, hash: BlockHash) {
-  crate::HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| {
-    h.insert(height, *hash.as_ref()).expect("MemoryOverflow");
-  });
-}
+  let mut buffer = Cursor::new([0; 32]);
+  hash
+    .consensus_encode(&mut buffer)
+    .expect("in-memory writers don't error");
 
-pub(crate) fn set_beginning_block() {
   crate::HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| {
-    h.insert(FIRST_HEIGHT, FIRST_BLOCK_HASH)
+    h.insert(height, buffer.into_inner())
       .expect("MemoryOverflow");
   });
 }

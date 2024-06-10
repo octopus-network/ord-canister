@@ -3,6 +3,7 @@ use {
   super::{runes::MintError, *},
   bitcoin::block::Header,
   std::collections::BTreeMap,
+  std::str::FromStr,
 };
 
 pub use self::entry::RuneEntry;
@@ -13,6 +14,51 @@ mod lot;
 mod updater;
 
 const SCHEMA_VERSION: u64 = 26;
+
+fn set_beginning_block() {
+  let hash = BlockHash::from_str(FIRST_BLOCK_HASH).expect("valid hash");
+  crate::increase_height(FIRST_HEIGHT, hash);
+}
+
+pub(crate) fn init_rune() {
+  set_beginning_block();
+  let rune = Rune(2055900680524219742);
+
+  let id = RuneId { block: 1, tx: 0 };
+  let etching = Txid::all_zeros();
+
+  rune_to_rune_id(|r| r.insert(rune.store(), id)).expect("MemoryOverflow");
+
+  rune_id_to_rune_entry(|r| {
+    r.insert(
+      id,
+      RuneEntry {
+        block: id.block,
+        burned: 0,
+        divisibility: 0,
+        etching,
+        terms: Some(Terms {
+          amount: Some(1),
+          cap: Some(u128::MAX),
+          height: (
+            Some((SUBSIDY_HALVING_INTERVAL * 4).into()),
+            Some((SUBSIDY_HALVING_INTERVAL * 5).into()),
+          ),
+          offset: (None, None),
+        }),
+        mints: 0,
+        premine: 0,
+        spaced_rune: SpacedRune { rune, spacers: 128 },
+        symbol: Some('\u{29C9}'),
+        timestamp: 0,
+        turbo: true,
+      },
+    )
+  })
+  .expect("MemoryOverflow");
+
+  transaction_id_to_rune(|t| t.insert(Txid::store(etching), rune.store())).expect("MemoryOverflow");
+}
 
 pub(crate) fn get_etching(txid: Txid) -> Result<Option<SpacedRune>> {
   let Some(rune) = crate::transaction_id_to_rune(|t| t.get(&Txid::store(txid)).map(|r| *r)) else {
@@ -52,7 +98,7 @@ pub(crate) fn get_rune_balances_for_output(
   })
 }
 
-pub(crate) async fn get_highest_from_rpc() -> Result<(u32, BlockHash)> {
+pub(crate) async fn get_best_from_rpc() -> Result<(u32, BlockHash)> {
   let url = get_url();
   let hash = rpc::get_best_block_hash(&url).await?;
   let header = rpc::get_block_header(&url, hash).await?;
@@ -62,9 +108,14 @@ pub(crate) async fn get_highest_from_rpc() -> Result<(u32, BlockHash)> {
 pub fn sync(secs: u64) {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
     ic_cdk::spawn(async move {
-      let (height, current) = crate::highest_block_hash();
-      match get_highest_from_rpc().await {
-        Ok((best, hash)) => {
+      let (height, current) = crate::highest_block();
+      // TODO comment this to test
+      // if height >= 840_000 {
+      //   ic_cdk::println!("we are done!");
+      //   return;
+      // }
+      match get_best_from_rpc().await {
+        Ok((best, _)) => {
           ic_cdk::println!("our best = {}, their best = {}", height, best);
           if height + REQUIRED_CONFIRMATIONS > best {
             sync(60);
@@ -72,12 +123,17 @@ pub fn sync(secs: u64) {
             match updater::get_block(height + 1).await {
               Ok(block) => {
                 if block.header.prev_blockhash != current {
-                  ic_cdk::println!("reorg detected! our best = {}({})", height, current);
+                  ic_cdk::println!(
+                    "reorg detected! our best = {}({:x}), the new block to be applied {:?}",
+                    height,
+                    current,
+                    block.header
+                  );
                   sync(60);
                   return;
                 }
                 ic_cdk::println!("indexing block {:?}", block.header);
-                if let Err(e) = updater::index_block(height + 1, hash, block).await {
+                if let Err(e) = updater::index_block(height + 1, block).await {
                   ic_cdk::println!("index error: {:?}", e);
                 }
                 sync(0);

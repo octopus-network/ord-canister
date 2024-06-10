@@ -175,10 +175,10 @@ impl RuneUpdater {
         continue;
       }
 
-      let mut balances = balances.into_iter().collect::<Vec<(RuneId, Lot)>>();
+      // let mut balances = balances.into_iter().collect::<Vec<(RuneId, Lot)>>();
 
       // Sort balances by id so tests can assert balances in a fixed order
-      balances.sort();
+      // balances.sort();
 
       let outpoint = OutPoint {
         txid,
@@ -204,7 +204,6 @@ impl RuneUpdater {
       }
       outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec)).expect("MemoryOverflow");
     }
-
     // increment entries with burned runes
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
@@ -370,7 +369,6 @@ impl RuneUpdater {
         }
       }
     }
-
     Ok(unallocated)
   }
 }
