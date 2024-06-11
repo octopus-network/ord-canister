@@ -13,7 +13,8 @@ pub mod event;
 mod lot;
 mod updater;
 
-const SCHEMA_VERSION: u64 = 26;
+#[allow(dead_code)]
+pub const SCHEMA_VERSION: u64 = 26;
 
 fn set_beginning_block() {
   let hash = BlockHash::from_str(FIRST_BLOCK_HASH).expect("valid hash");
@@ -60,6 +61,7 @@ pub(crate) fn init_rune() {
   transaction_id_to_rune(|t| t.insert(Txid::store(etching), rune.store())).expect("MemoryOverflow");
 }
 
+#[allow(dead_code)]
 pub(crate) fn get_etching(txid: Txid) -> Result<Option<SpacedRune>> {
   let Some(rune) = crate::transaction_id_to_rune(|t| t.get(&Txid::store(txid)).map(|r| *r)) else {
     return Ok(None);
@@ -72,6 +74,7 @@ pub(crate) fn get_etching(txid: Txid) -> Result<Option<SpacedRune>> {
   Ok(Some(entry.spaced_rune))
 }
 
+#[allow(dead_code)]
 pub(crate) fn get_rune_balances_for_output(
   outpoint: OutPoint,
 ) -> Result<BTreeMap<SpacedRune, Pile>> {
@@ -109,7 +112,7 @@ pub fn sync(secs: u64) {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
     ic_cdk::spawn(async move {
       let (height, current) = crate::highest_block();
-      // TODO comment this to test
+      // uncomment this to test
       // if height >= 840_000 {
       //   ic_cdk::println!("we are done!");
       //   return;

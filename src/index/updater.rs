@@ -1,5 +1,7 @@
 mod rune_updater;
 
+use bitcoincore_rpc_json::GetRawTransactionResult;
+
 use self::rune_updater::RuneUpdater;
 use crate::*;
 use std::collections::HashMap;
@@ -49,4 +51,9 @@ pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
     .check_merkle_root()
     .then(|| BlockData::from(block))
     .ok_or(OrdError::BlockVerification(height))
+}
+
+pub(crate) async fn get_raw_tx(txid: Txid) -> Result<GetRawTransactionResult> {
+  let url = get_url();
+  rpc::get_raw_tx(&url, txid).await
 }

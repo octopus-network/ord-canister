@@ -44,6 +44,12 @@ pub enum OrdError {
   Rpc(#[from] rpc::RpcError),
 }
 
+impl From<bitcoincore_rpc_json::bitcoin::consensus::encode::Error> for OrdError {
+  fn from(e: bitcoincore_rpc_json::bitcoin::consensus::encode::Error) -> Self {
+    OrdError::Params(e.to_string())
+  }
+}
+
 thread_local! {
   static OUTPOINT_TO_RUNE_BALANCES: RefCell<SHashMap<OutPointValue, SVec<RuneBalance>>> = RefCell::new(SHashMap::new());
   static RUNE_ID_TO_RUNE_ENTRY: RefCell<SHashMap<RuneId, RuneEntry>> = RefCell::new(SHashMap::new());

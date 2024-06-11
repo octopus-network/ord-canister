@@ -205,3 +205,12 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
   consensus::encode::deserialize(&hex)
     .map_err(|e| OrdError::Rpc(RpcError::Decode("getblock", url.to_string(), e.to_string())))
 }
+
+pub(crate) async fn get_raw_tx(url: &str, txid: Txid) -> Result<GetRawTransactionResult> {
+  make_rpc::<GetRawTransactionResult>(
+    url,
+    "getrawtransaction",
+    serde_json::json!([format!("{:x}", txid), true]),
+  )
+  .await
+}

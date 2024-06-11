@@ -202,8 +202,10 @@ impl RuneUpdater {
           });
         }
       }
-      outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec)).expect("MemoryOverflow");
+
+      outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec).expect("MemoryOverflow"));
     }
+
     // increment entries with burned runes
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
@@ -301,7 +303,7 @@ impl RuneUpdater {
   fn etched(
     &mut self,
     tx_index: u32,
-    tx: &Transaction,
+    _tx: &Transaction,
     artifact: &Artifact,
   ) -> Result<Option<(RuneId, Rune)>> {
     let rune = match artifact {
@@ -319,8 +321,7 @@ impl RuneUpdater {
       if rune < self.minimum
         || rune.is_reserved()
         || crate::rune_to_rune_id(|r| r.get(&rune.0).is_some())
-      // true means the tx's input is an valid output of previous tx. can we just omit this check?
-      // || !self.tx_commits_to_rune(tx, rune)?
+      // || !Self::tx_commits_to_rune(tx, rune).await?
       {
         return Ok(None);
       }
@@ -352,6 +353,49 @@ impl RuneUpdater {
     crate::rune_id_to_rune_entry(|r| r.insert(id, rune_entry)).expect("MemoryOverflow");
 
     Ok(Some(Lot(amount)))
+  }
+
+  #[allow(dead_code)]
+  async fn tx_commits_to_rune(tx: &Transaction, rune: Rune) -> Result<bool> {
+    let commitment = rune.commitment();
+
+    for input in &tx.input {
+      // extracting a tapscript does not indicate that the input being spent
+      // was actually a taproot output. this is checked below, when we load the
+      // output's entry from the database
+      let Some(tapscript) = input.witness.tapscript() else {
+        continue;
+      };
+
+      for instruction in tapscript.instructions() {
+        // ignore errors, since the extracted script may not be valid
+        let Ok(instruction) = instruction else {
+          break;
+        };
+
+        let Some(pushbytes) = instruction.push_bytes() else {
+          continue;
+        };
+
+        if pushbytes.as_bytes() != commitment {
+          continue;
+        }
+
+        let tx_info = super::get_raw_tx(input.previous_output.txid).await?;
+
+        let taproot = tx_info.vout[input.previous_output.vout as usize]
+          .script_pub_key
+          .script()?
+          .is_p2tr();
+
+        if !taproot {
+          continue;
+        }
+        return Ok(true);
+      }
+    }
+
+    Ok(false)
   }
 
   fn unallocated(&mut self, tx: &Transaction) -> Result<HashMap<RuneId, Lot>> {
