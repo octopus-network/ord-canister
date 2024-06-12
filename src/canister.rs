@@ -23,20 +23,21 @@ pub fn get_height() -> Result<(u32, String), OrdError> {
 
 #[init]
 pub fn init(url: String) {
+  crate::init_storage();
   crate::set_url(url);
-  ic_stable_memory::stable_memory_init();
   crate::index::init_rune();
   crate::index::sync(1);
 }
 
 #[pre_upgrade]
 fn pre_upgrade() {
-  ic_stable_memory::stable_memory_pre_upgrade().expect("MemoryOverflow");
+  crate::persistence();
 }
 
 #[post_upgrade]
 fn post_upgrade() {
-  ic_stable_memory::stable_memory_post_upgrade();
+  crate::restore();
+  crate::index::sync(1);
 }
 
 ic_cdk::export_candid!();
