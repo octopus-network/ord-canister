@@ -119,14 +119,14 @@ pub fn sync(secs: u64) {
       // }
       match get_best_from_rpc().await {
         Ok((best, _)) => {
-          ic_cdk::println!("our best = {}, their best = {}", height, best);
+          log::info!("our best = {}, their best = {}", height, best);
           if height + REQUIRED_CONFIRMATIONS > best {
             sync(60);
           } else {
             match updater::get_block(height + 1).await {
               Ok(block) => {
                 if block.header.prev_blockhash != current {
-                  ic_cdk::println!(
+                  log::info!(
                     "reorg detected! our best = {}({:x}), the new block to be applied {:?}",
                     height,
                     current,
@@ -135,21 +135,21 @@ pub fn sync(secs: u64) {
                   sync(60);
                   return;
                 }
-                ic_cdk::println!("indexing block {:?}", block.header);
+                log::info!("indexing block {:?}", block.header);
                 if let Err(e) = updater::index_block(height + 1, block).await {
-                  ic_cdk::println!("index error: {:?}", e);
+                  log::info!("index error: {:?}", e);
                 }
                 sync(0);
               }
               Err(e) => {
-                ic_cdk::println!("error: {:?}", e);
+                log::info!("error: {:?}", e);
                 sync(3);
               }
             }
           }
         }
         Err(e) => {
-          ic_cdk::println!("error: {:?}", e);
+          log::info!("error: {:?}", e);
           sync(3);
         }
       }

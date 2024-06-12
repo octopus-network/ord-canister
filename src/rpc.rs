@@ -2,10 +2,25 @@ use crate::*;
 use candid::CandidType;
 use ic_cdk::api::management_canister::http_request::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::str::FromStr;
 use thiserror::Error;
 
 pub use bitcoincore_rpc_json::*;
+
+lazy_static::lazy_static! {
+  static ref ESSENTIAL_HEADERS: std::collections::HashSet<String> = {
+    let mut set = std::collections::HashSet::new();
+    set.insert("content-length".to_string());
+    set.insert("content-range".to_string());
+    set
+  };
+}
+
+pub fn should_keep(header: &str) -> bool {
+  let h = header.to_ascii_lowercase();
+  ESSENTIAL_HEADERS.contains(&h)
+}
 
 #[derive(Debug, Error, CandidType)]
 pub enum RpcError {
@@ -65,12 +80,22 @@ fn partial_request(
     params: params.into(),
   };
   let body = serde_json::to_vec(&payload).unwrap();
+  let mut hasher = Sha256::new();
+  hasher.update(&body);
+  let uniq: [u8; 32] = hasher.finalize().into();
+  let uniq = hex::encode(uniq[0..16].to_vec());
   CanisterHttpRequestArgument {
     url: url.to_string(),
     method: HttpMethod::POST,
     body: Some(body),
     max_response_bytes: None,
-    transform: None,
+    transform: Some(TransformContext {
+      function: TransformFunc(candid::Func {
+        principal: ic_cdk::api::id(),
+        method: "rpc_transform".to_string(),
+      }),
+      context: vec![],
+    }),
     headers: vec![
       HttpHeader {
         name: "Content-Type".to_string(),
@@ -79,6 +104,14 @@ fn partial_request(
       HttpHeader {
         name: "User-Agent".to_string(),
         value: format!("omnity_ord_canister/{}", env!("CARGO_PKG_VERSION")),
+      },
+      HttpHeader {
+        name: "Idempotency-Key".to_string(),
+        value: uniq.clone(),
+      },
+      HttpHeader {
+        name: "x-cloud-trace-context".to_string(),
+        value: uniq.clone(),
       },
       HttpHeader {
         name: "Range".to_string(),
@@ -125,7 +158,7 @@ where
       })
       .flatten()
     {
-      ic_cdk::println!("bytes range: {:?} => {:?}", range, new_range);
+      log::info!("bytes range: {:?} => {:?}", range, new_range);
       range = new_range;
       buf.extend_from_slice(response.body.as_slice());
       if range.0 >= range.1 {
@@ -137,7 +170,7 @@ where
       break;
     }
   }
-  ic_cdk::println!("reading all {} bytes from rpc", buf.len());
+  log::info!("reading all {} bytes from rpc", buf.len());
   let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       endpoint.as_ref(),
