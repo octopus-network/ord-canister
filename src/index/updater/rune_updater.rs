@@ -240,7 +240,7 @@ impl RuneUpdater {
     id: RuneId,
     rune: Rune,
   ) -> Result<()> {
-    crate::rune_to_rune_id(|r| r.insert(rune.store(), id)).expect("MemoryOverflow");
+    // crate::rune_to_rune_id(|r| r.insert(rune.store(), id)).expect("MemoryOverflow");
     crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0)).expect("MemoryOverflow");
 
     let entry = match artifact {
@@ -318,9 +318,8 @@ impl RuneUpdater {
     };
 
     let rune = if let Some(rune) = rune {
-      if rune < self.minimum
-        || rune.is_reserved()
-        || crate::rune_to_rune_id(|r| r.get(&rune.0).is_some())
+      if rune < self.minimum || rune.is_reserved()
+      // || crate::rune_to_rune_id(|r| r.get(&rune.0).is_some())
       // || !Self::tx_commits_to_rune(tx, rune).await?
       {
         return Ok(None);
