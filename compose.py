@@ -1,30 +1,9 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-import json
-import requests
+import sys
 import time
-
-
-# def local():
-#     with open("840104", "r") as f:
-#         utxos = {}
-#         for line in f:
-#             v = line.split()
-#             tx = json.loads(v[1])
-#             for inp in tx["inputs"]:
-#                 r = utxos.pop((inp["address"], str(inp["runes"])), "")
-#                 if r != "":
-#                     print(
-#                         f"Spent {inp['runes']} from {inp['address']}, burn => {r[0]}:{r[1]}"
-#                     )
-#             for vout, out in enumerate(tx["outputs"]):
-#                 if len(out["runes"]) > 0 and out["address"] is not None:
-#                     utxos[(out["address"], str(out["runes"]))] = (v[0], vout)
-#                     print(
-#                         f"Added {out['runes']} to {out['address']}, mint => {v[0]}:{vout}"
-#                     )
-#         for k, v in utxos.items():
-#             print(k, "=>", v)
+import requests
 
 
 def explorer(txid, utxo):
@@ -45,15 +24,17 @@ def explorer(txid, utxo):
                 utxo[(body["txid"], vout)] = (rune_id, balance)
 
 
-def save(filename):
+def check(filename):
     utxo = {}
-    with open(filename, "r") as f:
+    with open(filename, "r", encoding="utf-8") as f:
         for tx in f:
             while True:
                 try:
                     explorer(tx.strip(), utxo)
+                    print(f"fetched {tx}", file=sys.stderr)
                     break
                 except Exception as e:
+                    print(e, file=sys.stderr)
                     time.sleep(5)
     for k, v in utxo.items():
         r = v[0].split(":")
@@ -61,4 +42,4 @@ def save(filename):
 
 
 if __name__ == "__main__":
-    save("840104.tx")
+    check(sys.argv[1])
