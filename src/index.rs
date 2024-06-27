@@ -120,8 +120,8 @@ pub fn sync(secs: u64) {
       match get_best_from_rpc().await {
         Ok((best, _)) => {
           log::info!("our best = {}, their best = {}", height, best);
-          if height + REQUIRED_CONFIRMATIONS > best {
-            sync(60);
+          if height + REQUIRED_CONFIRMATIONS >= best {
+            sync(300);
           } else {
             match updater::get_block(height + 1).await {
               Ok(block) => {
@@ -132,7 +132,7 @@ pub fn sync(secs: u64) {
                     current,
                     block.header
                   );
-                  sync(60);
+                  sync(300);
                   return;
                 }
                 log::info!("indexing block {:?}", block.header);

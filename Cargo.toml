@@ -1,6 +1,9 @@
 [package]
 name = "ord-canister"
 version = "0.1.0"
+authors = ["kachinsky@oct.network"]
+repository = "https://github.com/octopus-network/ord-canister"
+license = "MIT"
 edition = "2021"
 
 [workspace]
