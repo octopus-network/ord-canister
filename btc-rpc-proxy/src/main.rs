@@ -1,6 +1,8 @@
+mod cache;
 mod cli;
 mod proxy;
 
+use cache::LruCache;
 use clap::Parser;
 use http_body_util::BodyExt;
 use http_body_util::Full;
@@ -11,6 +13,7 @@ use hyper::{header::RANGE, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 
 fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
@@ -25,6 +28,15 @@ fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   } else {
     None
   }
+}
+
+fn try_match_cache_header(req: &Request<Incoming>) -> Option<String> {
+  req
+    .headers()
+    .get("X-Idempotency")
+    .map(|v| v.to_str().ok())
+    .flatten()
+    .map(|key| key.to_string())
 }
 
 async fn forward(
@@ -87,12 +99,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let addr = SocketAddr::from((args.run.addr, args.run.port));
   let target = args.run.forward;
   let listener = TcpListener::bind(addr).await?;
+  let cache = Arc::new(cache::MemoryCache::<Response<Full<Bytes>>>::new(1000));
   loop {
+    let cache = cache.clone();
     let target = target.clone();
     let (stream, _) = listener.accept().await?;
     let io = TokioIo::new(stream);
     tokio::task::spawn(async move {
-      let f = |req| async { forward(&target, req).await };
+      let f = |req| async {
+        let key = try_match_cache_header(&req);
+        if let Some(ref key) = key {
+          match cache.get(key).await {
+            Some(response) => {
+              println!("Cache hit {}", key);
+              return Ok(response);
+            }
+            None => {}
+          }
+        }
+        let rsp = forward(&target, req).await;
+        if let Ok(ref response) = rsp {
+          if let Some(key) = key {
+            println!("Cache create {}", key);
+            cache.put_if_absent(key, response.clone()).await;
+          }
+        }
+        rsp
+      };
       if let Err(err) = http1::Builder::new()
         .serve_connection(io, service_fn(f))
         .await
