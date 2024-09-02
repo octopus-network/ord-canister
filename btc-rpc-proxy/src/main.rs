@@ -120,8 +120,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let rsp = forward(&target, req).await;
         if let Ok(ref response) = rsp {
           if let Some(key) = key {
-            println!("Cache create {}", key);
-            cache.put_if_absent(key, response.clone()).await;
+            println!("Cache created {}", key);
+            cache.put(key, response.clone()).await;
           }
         }
         rsp

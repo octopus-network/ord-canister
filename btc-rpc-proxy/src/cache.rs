@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 #[async_trait]
 pub trait LruCache<T> {
   async fn get(&self, key: &str) -> Option<T>;
-  async fn put_if_absent(&self, key: String, value: T) -> Option<T>;
+  async fn put(&self, key: String, value: T) -> Option<T>;
 }
 
 pub struct MemoryCache<T> {
@@ -23,7 +23,7 @@ impl<T: Clone + Send + Sync> LruCache<T> for MemoryCache<T> {
     cache.get_refresh(key).cloned()
   }
 
-  async fn put_if_absent(&self, key: String, value: T) -> Option<T> {
+  async fn put(&self, key: String, value: T) -> Option<T> {
     let mut cache = self.cache.lock().await;
     if cache.len() >= self.capacity {
       cache.pop_front();
