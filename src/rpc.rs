@@ -128,7 +128,7 @@ where
     let args = partial_request(url.to_string(), endpoint, params.clone(), range);
     let (response,) = http_request(args, MAX_CYCLES)
       .await
-      .map_err(|(_, e)| OrdError::Rpc(RpcError::Io(endpoint.as_ref(), url.to_string(), e)))?;
+      .map_err(|(_, e)| OrdError::Rpc(RpcError::Io(endpoint.to_string(), url.to_string(), e)))?;
     if response.status == 200 {
       buf.extend_from_slice(response.body.as_slice());
       break;
@@ -162,20 +162,20 @@ where
   log::info!("reading all {} bytes from rpc", buf.len());
   let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
-      endpoint.as_ref(),
+      endpoint.to_string(),
       url.to_string(),
       e.to_string(),
     ))
   })?;
   if reply.error.is_some() {
     return Err(OrdError::Rpc(RpcError::Endpoint(
-      endpoint.as_ref(),
+      endpoint.to_string(),
       url.to_string(),
       reply.error.map(|e| e.message).unwrap(),
     )));
   }
   reply.result.ok_or(OrdError::Rpc(RpcError::Decode(
-    endpoint.as_ref(),
+    endpoint.to_string(),
     url.to_string(),
     "No result".to_string(),
   )))
@@ -185,7 +185,7 @@ pub(crate) async fn get_block_hash(url: &str, height: u32) -> Result<BlockHash> 
   let r = make_rpc::<String>(url, "getblockhash", serde_json::json!([height])).await?;
   let hash = BlockHash::from_str(&r).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
-      "getblockhash",
+      "getblockhash".to_string(),
       url.to_string(),
       e.to_string(),
     ))
@@ -206,7 +206,7 @@ pub(crate) async fn get_best_block_hash(url: &str) -> Result<BlockHash> {
   let r = make_rpc::<String>(url, "getbestblockhash", serde_json::json!([])).await?;
   let hash = BlockHash::from_str(&r).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
-      "getbestblockhash",
+      "getbestblockhash".to_string(),
       url.to_string(),
       e.to_string(),
     ))
@@ -222,10 +222,20 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
   )
   .await?;
   use hex::FromHex;
-  let hex = <Vec<u8>>::from_hex(hex)
-    .map_err(|e| OrdError::Rpc(RpcError::Decode("getblock", url.to_string(), e.to_string())))?;
-  consensus::encode::deserialize(&hex)
-    .map_err(|e| OrdError::Rpc(RpcError::Decode("getblock", url.to_string(), e.to_string())))
+  let hex = <Vec<u8>>::from_hex(hex).map_err(|e| {
+    OrdError::Rpc(RpcError::Decode(
+      "getblock".to_string(),
+      url.to_string(),
+      e.to_string(),
+    ))
+  })?;
+  consensus::encode::deserialize(&hex).map_err(|e| {
+    OrdError::Rpc(RpcError::Decode(
+      "getblock".to_string(),
+      url.to_string(),
+      e.to_string(),
+    ))
+  })
 }
 
 pub(crate) async fn get_raw_tx(url: &str, txid: Txid) -> Result<GetRawTransactionResult> {
