@@ -1,6 +1,7 @@
-use crate::{index::entry::Entry, OrdError, OutPoint, RuneBalance, Txid};
+use crate::{index::entry::Entry, OutPoint, Txid};
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query};
+use rune_indexer_interface::*;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -10,9 +11,11 @@ pub fn get_runes_by_utxo(txid: String, vout: u32) -> Result<Vec<RuneBalance>, Or
     txid: Txid::from_str(&txid).map_err(|e| OrdError::Params(e.to_string()))?,
     vout,
   });
-  let v =
-    crate::outpoint_to_rune_balances(|b| b.get(&k).map(|v| v.deref().iter().map(|i| *i).collect()))
-      .unwrap_or_default();
+  let v = crate::outpoint_to_rune_balances(|b| {
+    b.get(&k)
+      .map(|v| v.deref().iter().map(|i| (*i).into()).collect())
+  })
+  .unwrap_or_default();
   Ok(v)
 }
 

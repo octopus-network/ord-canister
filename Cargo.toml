@@ -7,7 +7,7 @@ license = "MIT"
 edition = "2021"
 
 [workspace]
-members = [".", "btc-rpc-proxy", "crates/*"]
+members = [".", "btc-rpc-proxy", "crates/*", "interface"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -39,3 +39,4 @@ ordinals = { path = "./crates/ordinals" }
 sha2 = "0.10.8"
 ic-log = { git = "https://github.com/octopus-network/canister-sdk.git", tag = "v0.11.x" }
 log = "0.4"
+rune-indexer-interface = { path = "./interface" }

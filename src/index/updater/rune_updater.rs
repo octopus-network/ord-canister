@@ -384,7 +384,8 @@ impl RuneUpdater {
 
         let taproot = tx_info.vout[input.previous_output.vout as usize]
           .script_pub_key
-          .script()?
+          .script()
+          .map_err(|e| OrdError::Params(e.to_string()))?
           .is_p2tr();
 
         if !taproot {
