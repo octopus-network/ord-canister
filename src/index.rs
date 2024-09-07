@@ -1,10 +1,9 @@
-use {
-  self::{entry::Entry, event::Event, lot::Lot},
-  super::{runes::MintError, *},
-  bitcoin::block::Header,
-  std::collections::BTreeMap,
-  std::str::FromStr,
-};
+use self::{entry::Entry, event::Event, lot::Lot};
+use super::*;
+use bitcoin::block::Header;
+use rune_indexer_interface::MintError;
+use std::collections::BTreeMap;
+use std::str::FromStr;
 
 pub use self::entry::RuneEntry;
 

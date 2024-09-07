@@ -1,10 +1,9 @@
 use crate::*;
-use candid::CandidType;
 use ic_cdk::api::management_canister::http_request::*;
+use rune_indexer_interface::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
-use thiserror::Error;
 
 pub use bitcoincore_rpc_json::*;
 
@@ -20,16 +19,6 @@ lazy_static::lazy_static! {
 pub fn should_keep(header: &str) -> bool {
   let h = header.to_ascii_lowercase();
   ESSENTIAL_HEADERS.contains(&h)
-}
-
-#[derive(Debug, Error, CandidType)]
-pub enum RpcError {
-  #[error("IO error occured while calling {0} onto {1} due to {2}.")]
-  Io(&'static str, String, String),
-  #[error("Decoding response of {0} from {1} failed due to {2}.")]
-  Decode(&'static str, String, String),
-  #[error("Received an error of endpoint {0} from {1}: {2}.")]
-  Endpoint(&'static str, String, String),
 }
 
 #[derive(Serialize, Debug)]

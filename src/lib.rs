@@ -1,7 +1,6 @@
 mod canister;
 mod index;
 mod rpc;
-mod runes;
 
 use self::index::entry::{OutPointValue, TxidValue};
 pub use bitcoin::{
@@ -17,7 +16,6 @@ pub use bitcoin::{
   script, Amount, Block, Network, OutPoint, Script, ScriptBuf, Sequence, Transaction, TxIn, TxOut,
   Txid, Witness,
 };
-use candid::CandidType;
 use core2::io::Cursor;
 use ic_log::{LogSettings, LoggerConfig};
 use ic_stable_memory::{
@@ -29,32 +27,12 @@ pub use ordinals::{
   varint, Artifact, Charm, Edict, Epoch, Etching, Height, Pile, Rarity, Rune, RuneId, Runestone,
   Sat, SatPoint, SpacedRune, Terms,
 };
+use rune_indexer_interface::OrdError;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use thiserror::Error;
 
 pub(crate) type Result<T> = std::result::Result<T, OrdError>;
-
-#[derive(Debug, Error, CandidType)]
-pub enum OrdError {
-  #[error("params: {0}")]
-  Params(String),
-  #[error("overflow")]
-  Overflow,
-  #[error("block verification")]
-  BlockVerification(u32),
-  #[error("index error: {0}")]
-  Index(runes::MintError),
-  #[error("rpc error: {0}")]
-  Rpc(#[from] rpc::RpcError),
-}
-
-impl From<bitcoincore_rpc_json::bitcoin::consensus::encode::Error> for OrdError {
-  fn from(e: bitcoincore_rpc_json::bitcoin::consensus::encode::Error) -> Self {
-    OrdError::Params(e.to_string())
-  }
-}
 
 thread_local! {
   static OUTPOINT_TO_RUNE_BALANCES: RefCell<Option<SHashMap<OutPointValue, SVec<RuneBalance>>>> = RefCell::new(None);

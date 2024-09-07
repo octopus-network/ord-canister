@@ -4,6 +4,7 @@ use bitcoincore_rpc_json::GetRawTransactionResult;
 
 use self::rune_updater::RuneUpdater;
 use crate::*;
+use rune_indexer_interface::OrdError;
 use std::collections::HashMap;
 
 pub(crate) struct BlockData {
