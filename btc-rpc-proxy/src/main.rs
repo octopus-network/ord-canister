@@ -4,17 +4,19 @@ mod proxy;
 
 use cache::LruCache;
 use clap::Parser;
-use http_body_util::BodyExt;
-use http_body_util::Full;
+
+use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{header::RANGE, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::sync::{Mutex, Notify};
 
 fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   if let Some(range_control) = req.headers().get(RANGE).map(|v| v.to_str().ok()).flatten() {
@@ -99,33 +101,89 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let addr = SocketAddr::from((args.run.addr, args.run.port));
   let target = args.run.forward;
   let listener = TcpListener::bind(addr).await?;
-  let cache = Arc::new(cache::MemoryCache::<Response<Full<Bytes>>>::new(1000));
+  let req_cache = Arc::new(cache::MemoryCache::<String>::new(1000));
+  let resp_cache = Arc::new(cache::MemoryCache::<Response<Full<Bytes>>>::new(1000));
+  let notify_map = Arc::new(Mutex::new(HashMap::<String, Arc<Notify>>::new()));
+
   loop {
-    let cache = cache.clone();
+    let req_cache = req_cache.clone();
+    let resp_cache = resp_cache.clone();
+    let notify_map = notify_map.clone();
     let target = target.clone();
     let (stream, _) = listener.accept().await?;
     let io = TokioIo::new(stream);
     tokio::task::spawn(async move {
       let f = |req| async {
+        println!("Received request: {:#?}", req);
         let key = try_match_cache_header(&req);
-        if let Some(ref key) = key {
-          match cache.get(key).await {
-            Some(response) => {
-              println!("Cache hit {}", key);
-              return Ok(response);
+        if let Some(key) = key {
+          // first check resp cache,if find existed resp ,return it
+          if let Some(response) = resp_cache.get(&key).await {
+            println!("find response from cache: {} -> {:#?}", key, response);
+            return Ok(response);
+          } else {
+            // if not existed resp ,check the req forwarded?
+            if req_cache.get(&key).await.is_some() {
+              // already exist req,just waiting
+              let notify = {
+                let mut notify_map = notify_map.lock().await;
+                notify_map
+                  .entry(key.clone())
+                  .or_insert_with(|| Arc::new(Notify::new()))
+                  .clone()
+              };
+              notify.notified().await;
+              // weak up and get resp
+              if let Some(response) = resp_cache.get(&key).await {
+                println!("wait for response: {} -> {:#?}", key, response);
+                return Ok(response);
+              } else {
+                eprintln!("Cache inconsistency for key {}", key);
+                return Err("Cache inconsistency".into());
+              }
+            } else {
+              // new req, need to forward it
+              let req_content = format!("{:?}", req);
+              // update req cache for the key
+              req_cache.put(key.clone(), req_content.clone()).await;
+              println!(
+                "forward new request for X-Idempotency: {} -> {:#?}",
+                key, req_content
+              );
+              let rsp = forward(&target, req).await;
+              match rsp {
+                Ok(response) => {
+                  println!(
+                    "Received response for X-Idempotency: {} -> {:#?}",
+                    key, response
+                  );
+                  resp_cache.put(key.clone(), response.clone()).await;
+
+                  // notify all the waiters
+                  if let Some(notify) = notify_map.lock().await.remove(&key) {
+                    println!("Notify all the waiters for X-Idempotency request: {} ", key);
+                    notify.notify_waiters();
+                  }
+
+                  Ok(response)
+                }
+                Err(err) => {
+                  let e = format!("{}", err);
+                  eprintln!("Error forwarding request: {}", e);
+                  Err(e)
+                }
+              }
             }
-            None => {}
           }
+        } else {
+          // directly forward
+          println!("without X-Idempotency just forword req ...");
+          forward(&target, req)
+            .await
+            .map_err(|err| format!("{}", err))
         }
-        let rsp = forward(&target, req).await;
-        if let Ok(ref response) = rsp {
-          if let Some(key) = key {
-            println!("Cache created {}", key);
-            cache.put(key, response.clone()).await;
-          }
-        }
-        rsp
       };
+
       if let Err(err) = http1::Builder::new()
         .serve_connection(io, service_fn(f))
         .await
