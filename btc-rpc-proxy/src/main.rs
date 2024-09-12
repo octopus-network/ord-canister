@@ -18,6 +18,9 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, Notify};
 
+pub const IDEMPOTENCY_KEY: &str = "X-Idempotency";
+pub const FORWARD_SOLANA_RPC: &str = "X-Forward-Solana";
+
 fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   if let Some(range_control) = req.headers().get(RANGE).map(|v| v.to_str().ok()).flatten() {
     let range = range_control
@@ -32,10 +35,10 @@ fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   }
 }
 
-fn try_match_cache_header(req: &Request<Incoming>) -> Option<String> {
+fn try_match_cache_header(req: &Request<Incoming>, h_key: &str) -> Option<String> {
   req
     .headers()
-    .get("X-Idempotency")
+    .get(h_key)
     .map(|v| v.to_str().ok())
     .flatten()
     .map(|key| key.to_string())
@@ -109,13 +112,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let req_cache = req_cache.clone();
     let resp_cache = resp_cache.clone();
     let notify_map = notify_map.clone();
-    let target = target.clone();
+    let default_target = target.clone();
     let (stream, _) = listener.accept().await?;
     let io = TokioIo::new(stream);
     tokio::task::spawn(async move {
       let f = |req| async {
         println!("Received request: {:#?}", req);
-        let key = try_match_cache_header(&req);
+        let key = try_match_cache_header(&req, IDEMPOTENCY_KEY);
         if let Some(key) = key {
           // first check resp cache,if find existed resp ,return it
           if let Some(response) = resp_cache.get(&key).await {
@@ -135,7 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
               notify.notified().await;
               // weak up and get resp
               if let Some(response) = resp_cache.get(&key).await {
-                println!("wait for response: {} -> {:#?}", key, response);
+                println!("waited response: {} -> {:#?}", key, response);
                 return Ok(response);
               } else {
                 eprintln!("Cache inconsistency for key {}", key);
@@ -150,7 +153,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 "forward new request for X-Idempotency: {} -> {:#?}",
                 key, req_content
               );
-              let rsp = forward(&target, req).await;
+
+              let forward_rpc =
+                try_match_cache_header(&req, FORWARD_SOLANA_RPC).unwrap_or(default_target.to_string());
+              println!("forward url: {}", forward_rpc);
+              let rsp = forward(&forward_rpc, req).await;
               match rsp {
                 Ok(response) => {
                   println!(
@@ -178,7 +185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         } else {
           // directly forward
           println!("without X-Idempotency just forword req ...");
-          forward(&target, req)
+          forward(&default_target, req)
             .await
             .map_err(|err| format!("{}", err))
         }
