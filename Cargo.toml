@@ -13,14 +13,12 @@ members = [".", "btc-rpc-proxy", "crates/*", "interface"]
 crate-type = ["cdylib"]
 
 [dependencies]
-candid = "0.9"
-ic-cdk = "0.11"
+candid = "0.10"
+ic-cdk = "0.12"
 ic-cdk-macros = "0.8"
-ic-cdk-timers = "0.5"
-ic-stable-memory = "0.4"
-ic-stable-memory-derive = "0.4"
-ic-ledger-types = "0.8"
-icrc-ledger-types = "0.1.4"
+ic-cdk-timers = "0.6"
+ic-stable-memory = "0.4.1"
+ic-stable-memory-derive = "0.4.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 syn = "1.0"
@@ -28,7 +26,7 @@ anyhow =  "1"
 thiserror = "1"
 generic-array = "0.14"
 cfg-if = "1.0"
-hex = "0.4"
+hex = "0.4.3"
 core2 = "0.3"
 bitcoin = { version = "0.30.1", default-features = false, features = ["no-std"] }
 bitcoincore-rpc-json = { version = "0.19.0", default-features = false }
@@ -37,6 +35,12 @@ hex-literal = "0.4.1"
 lazy_static = "1.4"
 ordinals = { path = "./crates/ordinals" }
 sha2 = "0.10.8"
-ic-log = { git = "https://github.com/octopus-network/canister-sdk.git", tag = "v0.11.x" }
-log = "0.4"
 rune-indexer-interface = { path = "./interface" }
+ic-canisters-http-types = { git = "https://github.com/dfinity/ic", tag = "release-2024-03-06_23-01+p2p" }
+ic-canister-log = { git = "https://github.com/dfinity/ic", tag = "release-2024-01-18_23-01" }
+serde_derive = "1.0"
+time = "0.3"
+
+[features]
+cmp-header = []
+default = ["cmp-header"]

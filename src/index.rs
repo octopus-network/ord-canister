@@ -1,6 +1,8 @@
 use self::{entry::Entry, event::Event, lot::Lot};
 use super::*;
+use crate::ic_log::*;
 use bitcoin::block::Header;
+use ic_canister_log::log;
 use rune_indexer_interface::MintError;
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -107,6 +109,20 @@ pub(crate) async fn get_best_from_rpc() -> Result<(u32, BlockHash)> {
   Ok((header.height.try_into().expect("usize to u32"), hash))
 }
 
+#[cfg(feature = "cmp-header")]
+pub(crate) async fn cmp_header(height: u32, from_rpc: &BlockHash) {
+  match crate::btc_canister::get_block_hash(height).await {
+    Ok(hash) => log!(
+      INFO,
+      "cross compare at {}, canister={:x}, rpc={:x}",
+      height,
+      hash,
+      from_rpc
+    ),
+    Err(e) => log!(ERROR, "error: {:?}", e),
+  }
+}
+
 pub fn sync(secs: u64) {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
     ic_cdk::spawn(async move {
@@ -118,14 +134,17 @@ pub fn sync(secs: u64) {
       // }
       match get_best_from_rpc().await {
         Ok((best, _)) => {
-          log::info!("our best = {}, their best = {}", height, best);
+          log!(INFO, "our best = {}, their best = {}", height, best);
           if height + REQUIRED_CONFIRMATIONS >= best {
             sync(300);
           } else {
             match updater::get_block(height + 1).await {
               Ok(block) => {
+                #[cfg(feature = "cmp-header")]
+                cmp_header(height + 1, &block.header.block_hash()).await;
                 if block.header.prev_blockhash != current {
-                  log::info!(
+                  log!(
+                    CRITICAL,
                     "reorg detected! our best = {}({:x}), the new block to be applied {:?}",
                     height,
                     current,
@@ -134,21 +153,21 @@ pub fn sync(secs: u64) {
                   sync(300);
                   return;
                 }
-                log::info!("indexing block {:?}", block.header);
+                log!(INFO, "indexing block {:?}", block.header);
                 if let Err(e) = updater::index_block(height + 1, block).await {
-                  log::info!("index error: {:?}", e);
+                  log!(CRITICAL, "index error: {:?}", e);
                 }
                 sync(0);
               }
               Err(e) => {
-                log::info!("error: {:?}", e);
+                log!(ERROR, "error: {:?}", e);
                 sync(3);
               }
             }
           }
         }
         Err(e) => {
-          log::info!("error: {:?}", e);
+          log!(ERROR, "error: {:?}", e);
           sync(3);
         }
       }

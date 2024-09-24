@@ -1,4 +1,5 @@
-use crate::*;
+use crate::{ic_log::INFO, *};
+use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::*;
 use rune_indexer_interface::*;
 use serde::{Deserialize, Serialize};
@@ -129,7 +130,7 @@ where
     let (response,) = http_request(args, MAX_CYCLES)
       .await
       .map_err(|(_, e)| OrdError::Rpc(RpcError::Io(endpoint.to_string(), url.to_string(), e)))?;
-    if response.status == 200 {
+    if response.status == candid::Nat::from(200u32) {
       buf.extend_from_slice(response.body.as_slice());
       break;
     }
@@ -147,7 +148,7 @@ where
       })
       .flatten()
     {
-      log::info!("bytes range: {:?} => {:?}", range, new_range);
+      log!(INFO, "bytes range: {:?} => {:?}", range, new_range);
       range = new_range;
       buf.extend_from_slice(response.body.as_slice());
       if range.0 >= range.1 {
@@ -159,7 +160,7 @@ where
       break;
     }
   }
-  log::info!("reading all {} bytes from rpc", buf.len());
+  log!(INFO, "reading all {} bytes from rpc", buf.len());
   let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       endpoint.to_string(),

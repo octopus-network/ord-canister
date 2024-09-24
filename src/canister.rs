@@ -25,7 +25,7 @@ pub fn get_height() -> Result<(u32, String), OrdError> {
   Ok((height, hash.to_string()))
 }
 
-#[query]
+#[query(hidden = true)]
 pub fn rpc_transform(args: TransformArgs) -> HttpResponse {
   let headers = args
     .response
@@ -40,15 +40,23 @@ pub fn rpc_transform(args: TransformArgs) -> HttpResponse {
   }
 }
 
-#[query]
-pub fn get_log_records(count: usize) -> Vec<String> {
-  ic_log::take_memory_records(count)
+#[query(hidden = true)]
+fn http_request(
+  req: ic_canisters_http_types::HttpRequest,
+) -> ic_canisters_http_types::HttpResponse {
+  if ic_cdk::api::data_certificate().is_none() {
+    ic_cdk::trap("update call rejected");
+  }
+  if req.path() == "/logs" {
+    crate::ic_log::do_reply(req)
+  } else {
+    ic_canisters_http_types::HttpResponseBuilder::not_found().build()
+  }
 }
 
 #[init]
 pub fn init(url: String) {
   crate::init_storage();
-  crate::init_ic_log();
   crate::set_url(url);
   crate::index::init_rune();
   crate::index::sync(1);
@@ -62,7 +70,6 @@ fn pre_upgrade() {
 #[post_upgrade]
 fn post_upgrade() {
   crate::restore();
-  crate::init_ic_log();
   crate::index::sync(1);
 }
 

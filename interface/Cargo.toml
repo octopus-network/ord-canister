@@ -7,5 +7,5 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-candid = "0.9"
+candid = "0.10"
 thiserror = "1"

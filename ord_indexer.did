@@ -1,9 +1,3 @@
-type HttpHeader = record { value : text; name : text };
-type HttpResponse = record {
-  status : nat;
-  body : vec nat8;
-  headers : vec HttpHeader;
-};
 type MintError = variant { Cap : nat; End : nat64; Start : nat64; Unmintable };
 type OrdError = variant {
   Rpc : RpcError;
@@ -21,10 +15,7 @@ type RpcError = variant {
 };
 type RuneBalance = record { id : RuneId; balance : nat };
 type RuneId = record { tx : nat32; block : nat64 };
-type TransformArgs = record { context : vec nat8; response : HttpResponse };
 service : (text) -> {
   get_height : () -> (Result) query;
-  get_log_records : (nat64) -> (vec text) query;
   get_runes_by_utxo : (text, nat32) -> (Result_1) query;
-  rpc_transform : (TransformArgs) -> (HttpResponse) query;
 }

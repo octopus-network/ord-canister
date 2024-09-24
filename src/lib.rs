@@ -1,4 +1,7 @@
+#[cfg(feature = "cmp-header")]
+mod btc_canister;
 mod canister;
+mod ic_log;
 mod index;
 mod rpc;
 
@@ -17,7 +20,6 @@ pub use bitcoin::{
   Txid, Witness,
 };
 use core2::io::Cursor;
-use ic_log::{LogSettings, LoggerConfig};
 use ic_stable_memory::{
   collections::{SBTreeMap, SHashMap, SVec},
   SBox,
@@ -29,8 +31,6 @@ pub use ordinals::{
 };
 use rune_indexer_interface::OrdError;
 use std::cell::RefCell;
-use std::marker::PhantomData;
-use std::rc::Rc;
 
 pub(crate) type Result<T> = std::result::Result<T, OrdError>;
 
@@ -41,7 +41,6 @@ thread_local! {
   static TRANSACTION_ID_TO_RUNE: RefCell<Option<SHashMap<TxidValue, u128>>> = RefCell::new(None);
   static HEIGHT_TO_BLOCK_HASH: RefCell<Option<SBTreeMap<u32, [u8; 32]>>> = RefCell::new(None);
   static RPC_URL: RefCell<Option<SBox<String>>> = RefCell::new(None);
-  static LOGGER_CONFIG: RefCell<Option<LoggerConfig>> = const { RefCell::new(None) };
 }
 
 pub const REQUIRED_CONFIRMATIONS: u32 = 4;
@@ -175,42 +174,4 @@ where
   F: Fn(&mut SHashMap<TxidValue, u128>) -> R,
 {
   crate::TRANSACTION_ID_TO_RUNE.with_borrow_mut(|t| f(t.as_mut().expect("not initialized")))
-}
-
-pub fn init_ic_log() {
-  let settings = LogSettings {
-    in_memory_records: Some(128),
-    log_filter: Some("info".to_string()),
-    enable_console: true,
-  };
-  match ic_log::init_log(&settings) {
-    Ok(logger_config) => LoggerConfigService::default().init(logger_config),
-    Err(err) => {
-      ic_cdk::println!("error configuring the logger. Err: {:?}", err)
-    }
-  }
-  log::info!("Logger initialized");
-}
-
-type ForceNotSendAndNotSync = PhantomData<Rc<()>>;
-
-#[derive(Debug, Default)]
-/// Handles the runtime logger configuration
-pub struct LoggerConfigService(ForceNotSendAndNotSync);
-
-impl LoggerConfigService {
-  /// Sets a new LoggerConfig
-  pub fn init(&self, logger_config: LoggerConfig) {
-    LOGGER_CONFIG.with(|config| config.borrow_mut().replace(logger_config));
-  }
-
-  /// Changes the logger filter at runtime
-  pub fn set_logger_filter(&self, filter: &str) {
-    LOGGER_CONFIG.with(|config| match *config.borrow_mut() {
-      Some(ref logger_config) => {
-        logger_config.update_filters(filter);
-      }
-      None => panic!("LoggerConfig not initialized"),
-    });
-  }
 }
