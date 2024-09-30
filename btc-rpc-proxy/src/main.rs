@@ -154,8 +154,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 key, req_content
               );
 
-              let forward_rpc =
-                try_match_cache_header(&req, FORWARD_SOLANA_RPC).unwrap_or(default_target.to_string());
+              let forward_rpc = try_match_cache_header(&req, FORWARD_SOLANA_RPC)
+                .unwrap_or(default_target.to_string());
               println!("forward url: {}", forward_rpc);
               let rsp = forward(&forward_rpc, req).await;
               match rsp {

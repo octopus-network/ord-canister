@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use http_body_util::BodyExt;
 use http_body_util::Full;
+
 use hyper::body::Incoming;
 use hyper::header::{HeaderMap, HeaderValue};
 use hyper::http::uri::InvalidUri;
@@ -84,11 +85,21 @@ fn forward_uri(
   forward_url: &str,
   req: &Request<impl hyper::body::Body>,
 ) -> Result<Uri, InvalidUri> {
+  println!("forward_uri: {} ", forward_url);
+  println!("req.uri(): {} ", req.uri());
+  println!("req.uri().path(): {} ", req.uri().path());
+  println!("req.uri().query() : {:?} ", req.uri().query());
   let forward_uri = match req.uri().query() {
-    Some(query) => format!("{}{}?{}", forward_url, req.uri().path(), query),
-    None => format!("{}{}", forward_url, req.uri().path()),
+    Some(query) => {
+      println!("query: {:?} ", query);
+      format!("{}{}?{}", forward_url, req.uri().path(), query)
+    }
+    // None => format!("{}{}", forward_url, req.uri().path()),\
+    None => format!("{}", forward_url),
   };
-  forward_uri.parse::<Uri>()
+  let uri = forward_uri.parse::<Uri>();
+  println!("forward_uri.parse::<Uri>: {:?} ", uri);
+  uri
 }
 
 async fn transform_request(
@@ -99,6 +110,9 @@ async fn transform_request(
   *request.uri_mut() = forward_uri(host, &request)?;
   let (p, b) = request.into_parts();
   let bytes = b.collect().await?.to_bytes();
+  let body = String::from_utf8_lossy(&bytes);
+  println!("request.body: {} ", body);
+
   let request = Request::from_parts(p, Full::from(bytes));
   Ok(request)
 }

@@ -380,6 +380,9 @@ dependencies = [
  "hyper-util",
  "lazy_static",
  "linked-hash-map",
+ "serde",
+ "serde_bytes",
+ "serde_json",
  "tokio",
  "unicase",
 ]
