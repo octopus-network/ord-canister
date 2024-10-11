@@ -11,11 +11,6 @@ pub struct Cli {
 pub struct RunCmd {
   #[arg(
     long,
-    help = "The target host to where forwarding requests. MUST BE HTTPS"
-  )]
-  pub forward: String,
-  #[arg(
-    long,
     default_value = "0.0.0.0",
     help = "Binding address, default 0.0.0.0"
   )]

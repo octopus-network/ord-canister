@@ -19,7 +19,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{Mutex, Notify};
 
 pub const IDEMPOTENCY_KEY: &str = "X-Idempotency";
-pub const FORWARD_SOLANA_RPC: &str = "X-Forward-Solana";
+pub const FORWARD_SOLANA_RPC: &str = "X-Forward-Host";
 
 fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
   if let Some(range_control) = req.headers().get(RANGE).map(|v| v.to_str().ok()).flatten() {
@@ -102,7 +102,6 @@ async fn forward(
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let args = cli::Cli::parse();
   let addr = SocketAddr::from((args.run.addr, args.run.port));
-  let target = args.run.forward;
   let listener = TcpListener::bind(addr).await?;
   let req_cache = Arc::new(cache::MemoryCache::<String>::new(1000));
   let resp_cache = Arc::new(cache::MemoryCache::<Response<Full<Bytes>>>::new(1000));
@@ -112,12 +111,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let req_cache = req_cache.clone();
     let resp_cache = resp_cache.clone();
     let notify_map = notify_map.clone();
-    let default_target = target.clone();
     let (stream, _) = listener.accept().await?;
     let io = TokioIo::new(stream);
     tokio::task::spawn(async move {
       let f = |req| async {
         println!("Received request: {:#?}", req);
+        let forward_rpc = try_match_cache_header(&req, FORWARD_SOLANA_RPC);
+        if forward_rpc.is_none() {
+            return Err("X-Forward-Host is none".to_string());
+        }
+        let forward_rpc = forward_rpc.unwrap();
+        println!("forward url: {}", forward_rpc);
         let key = try_match_cache_header(&req, IDEMPOTENCY_KEY);
         if let Some(key) = key {
           // first check resp cache,if find existed resp ,return it
@@ -154,9 +158,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 key, req_content
               );
 
-              let forward_rpc = try_match_cache_header(&req, FORWARD_SOLANA_RPC)
-                .unwrap_or(default_target.to_string());
-              println!("forward url: {}", forward_rpc);
               let rsp = forward(&forward_rpc, req).await;
               match rsp {
                 Ok(response) => {
@@ -185,7 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         } else {
           // directly forward
           println!("without X-Idempotency just forword req ...");
-          forward(&default_target, req)
+          forward(&forward_rpc, req)
             .await
             .map_err(|err| format!("{}", err))
         }
