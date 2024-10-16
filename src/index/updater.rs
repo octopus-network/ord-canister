@@ -1,7 +1,5 @@
 mod rune_updater;
 
-use bitcoincore_rpc_json::GetRawTransactionResult;
-
 use self::rune_updater::RuneUpdater;
 use crate::*;
 use rune_indexer_interface::OrdError;
@@ -54,7 +52,7 @@ pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
     .ok_or(OrdError::BlockVerification(height))
 }
 
-pub(crate) async fn get_raw_tx(txid: Txid) -> Result<GetRawTransactionResult> {
-  let url = get_url();
-  rpc::get_raw_tx(&url, txid).await
-}
+// pub(crate) async fn get_raw_tx(txid: Txid) -> Result<GetRawTransactionResult> {
+//   let url = get_url();
+//   rpc::get_raw_tx(&url, txid).await
+// }

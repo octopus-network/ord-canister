@@ -354,49 +354,49 @@ impl RuneUpdater {
     Ok(Some(Lot(amount)))
   }
 
-  #[allow(dead_code)]
-  async fn tx_commits_to_rune(tx: &Transaction, rune: Rune) -> Result<bool> {
-    let commitment = rune.commitment();
+  // #[allow(dead_code)]
+  // async fn tx_commits_to_rune(tx: &Transaction, rune: Rune) -> Result<bool> {
+  //   let commitment = rune.commitment();
 
-    for input in &tx.input {
-      // extracting a tapscript does not indicate that the input being spent
-      // was actually a taproot output. this is checked below, when we load the
-      // output's entry from the database
-      let Some(tapscript) = input.witness.tapscript() else {
-        continue;
-      };
+  //   for input in &tx.input {
+  //     // extracting a tapscript does not indicate that the input being spent
+  //     // was actually a taproot output. this is checked below, when we load the
+  //     // output's entry from the database
+  //     let Some(tapscript) = input.witness.tapscript() else {
+  //       continue;
+  //     };
 
-      for instruction in tapscript.instructions() {
-        // ignore errors, since the extracted script may not be valid
-        let Ok(instruction) = instruction else {
-          break;
-        };
+  //     for instruction in tapscript.instructions() {
+  //       // ignore errors, since the extracted script may not be valid
+  //       let Ok(instruction) = instruction else {
+  //         break;
+  //       };
 
-        let Some(pushbytes) = instruction.push_bytes() else {
-          continue;
-        };
+  //       let Some(pushbytes) = instruction.push_bytes() else {
+  //         continue;
+  //       };
 
-        if pushbytes.as_bytes() != commitment {
-          continue;
-        }
+  //       if pushbytes.as_bytes() != commitment {
+  //         continue;
+  //       }
 
-        let tx_info = super::get_raw_tx(input.previous_output.txid).await?;
+  //       let tx_info = super::get_raw_tx(input.previous_output.txid).await?;
 
-        let taproot = tx_info.vout[input.previous_output.vout as usize]
-          .script_pub_key
-          .script()
-          .map_err(|e| OrdError::Params(e.to_string()))?
-          .is_p2tr();
+  //       let taproot = tx_info.vout[input.previous_output.vout as usize]
+  //         .script_pub_key
+  //         .script()
+  //         .map_err(|e| OrdError::Params(e.to_string()))?
+  //         .is_p2tr();
 
-        if !taproot {
-          continue;
-        }
-        return Ok(true);
-      }
-    }
+  //       if !taproot {
+  //         continue;
+  //       }
+  //       return Ok(true);
+  //     }
+  //   }
 
-    Ok(false)
-  }
+  //   Ok(false)
+  // }
 
   fn unallocated(&mut self, tx: &Transaction) -> Result<HashMap<RuneId, Lot>> {
     // map of rune ID to un-allocated balance of that rune

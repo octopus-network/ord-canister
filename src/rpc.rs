@@ -1,4 +1,7 @@
-use crate::{ic_log::INFO, *};
+use crate::{
+  ic_log::{ERROR, INFO},
+  *,
+};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::*;
 use rune_indexer_interface::*;
@@ -112,13 +115,56 @@ fn partial_request(
 }
 
 const MAX_RESPONSE_BYTES: u64 = 1_995_000;
-// TODO max cycle ~ 1000_000_000_000
-const MAX_CYCLES: u128 = 1_000_000_000_000;
 
+// pub(crate) fn estimate_cycles(req_len: usize, estimate_len: usize) -> u128 {
+//   171_360_000 + (req_len as u128) * 13_600 + (estimate_len as u128) * 27_200
+// }
+
+async fn make_single_request(
+  args: CanisterHttpRequestArgument,
+  estimate_cycle: u128,
+) -> Result<HttpResponse> {
+  let mut retry = 0;
+  let mut cycles = estimate_cycle;
+  loop {
+    let response = http_request(args.clone(), cycles).await;
+    match response {
+      Ok((response,)) => return Ok(response),
+      Err((code, e)) => {
+        retry += 1;
+        // 0.01T
+        cycles += 10_000_000_000;
+        if retry > 3 {
+          log!(
+            ERROR,
+            "rpc error: {:?} => {}; won't retry(exceeds retry limit)",
+            code,
+            e
+          );
+          break Err(OrdError::Rpc(RpcError::Io(
+            "make_single_request".to_string(),
+            "retry limit exceeded".to_string(),
+            e,
+          )));
+        }
+        log!(
+          ERROR,
+          "rpc error: {:?} => {}; will retry with extra {} cycles",
+          code,
+          e,
+          cycles
+        );
+      }
+    }
+  }
+}
+
+// max(estimate_len) = 1024 * 1024
 pub(crate) async fn make_rpc<R>(
   url: impl ToString,
   endpoint: &'static str,
   params: impl Into<serde_json::Value> + Clone,
+  estimate_cycle: u128,
 ) -> Result<R>
 where
   R: for<'a> Deserialize<'a> + std::fmt::Debug,
@@ -127,9 +173,7 @@ where
   let mut buf = Vec::<u8>::with_capacity(MAX_RESPONSE_BYTES as usize);
   loop {
     let args = partial_request(url.to_string(), endpoint, params.clone(), range);
-    let (response,) = http_request(args, MAX_CYCLES)
-      .await
-      .map_err(|(_, e)| OrdError::Rpc(RpcError::Io(endpoint.to_string(), url.to_string(), e)))?;
+    let response = make_single_request(args, estimate_cycle).await?;
     if response.status == candid::Nat::from(200u32) {
       buf.extend_from_slice(response.body.as_slice());
       break;
@@ -183,7 +227,13 @@ where
 }
 
 pub(crate) async fn get_block_hash(url: &str, height: u32) -> Result<BlockHash> {
-  let r = make_rpc::<String>(url, "getblockhash", serde_json::json!([height])).await?;
+  let r = make_rpc::<String>(
+    url,
+    "getblockhash",
+    serde_json::json!([height]),
+    20_950_923_600,
+  )
+  .await?;
   let hash = BlockHash::from_str(&r).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       "getblockhash".to_string(),
@@ -199,12 +249,19 @@ pub(crate) async fn get_block_header(url: &str, hash: BlockHash) -> Result<GetBl
     url,
     "getblockheader",
     serde_json::json!([format!("{:x}", hash), true]),
+    20_950_923_600,
   )
   .await
 }
 
 pub(crate) async fn get_best_block_hash(url: &str) -> Result<BlockHash> {
-  let r = make_rpc::<String>(url, "getbestblockhash", serde_json::json!([])).await?;
+  let r = make_rpc::<String>(
+    url,
+    "getbestblockhash",
+    serde_json::json!([]),
+    20_950_923_600,
+  )
+  .await?;
   let hash = BlockHash::from_str(&r).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       "getbestblockhash".to_string(),
@@ -220,6 +277,7 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
     url,
     "getblock",
     serde_json::json!([format!("{:x}", hash), 0]),
+    20_996_000_000,
   )
   .await?;
   use hex::FromHex;
@@ -237,13 +295,4 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
       e.to_string(),
     ))
   })
-}
-
-pub(crate) async fn get_raw_tx(url: &str, txid: Txid) -> Result<GetRawTransactionResult> {
-  make_rpc::<GetRawTransactionResult>(
-    url,
-    "getrawtransaction",
-    serde_json::json!([format!("{:x}", txid), true]),
-  )
-  .await
 }
