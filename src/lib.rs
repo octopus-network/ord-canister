@@ -145,7 +145,10 @@ pub(crate) fn get_url() -> String {
 }
 
 pub(crate) fn set_url(url: String) {
-  crate::RPC_URL.with_borrow_mut(|r| r.replace(SBox::new(url).expect("MemoryOverflow")));
+  crate::RPC_URL.with_borrow_mut(|r| {
+    let new_url = SBox::new(url).expect("MemoryOverflow");
+    r.replace(new_url)
+  });
 }
 
 pub(crate) fn outpoint_to_rune_balances<F, R>(f: F) -> R

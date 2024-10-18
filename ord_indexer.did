@@ -6,8 +6,9 @@ type OrdError = variant {
   Index : MintError;
   BlockVerification : nat32;
 };
-type Result = variant { Ok : record { nat32; text }; Err : OrdError };
-type Result_1 = variant { Ok : vec RuneBalance; Err : OrdError };
+type Result = variant { Ok; Err : text };
+type Result_1 = variant { Ok : record { nat32; text }; Err : OrdError };
+type Result_2 = variant { Ok : vec RuneBalance; Err : OrdError };
 type RpcError = variant {
   Io : record { text; text; text };
   Endpoint : record { text; text; text };
@@ -16,6 +17,7 @@ type RpcError = variant {
 type RuneBalance = record { id : RuneId; balance : nat };
 type RuneId = record { tx : nat32; block : nat64 };
 service : (text) -> {
-  get_height : () -> (Result) query;
-  get_runes_by_utxo : (text, nat32) -> (Result_1) query;
+  admin_set_url : (text) -> (Result);
+  get_height : () -> (Result_1) query;
+  get_runes_by_utxo : (text, nat32) -> (Result_2) query;
 }

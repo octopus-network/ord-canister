@@ -65,7 +65,7 @@ fn partial_request(
   endpoint: &'static str,
   params: impl Into<serde_json::Value>,
   range: (u64, u64),
-) -> CanisterHttpRequestArgument {
+) -> (CanisterHttpRequestArgument, u128) {
   let payload = Payload {
     jsonrpc: "1.0",
     id: "btc0",
@@ -77,48 +77,48 @@ fn partial_request(
   hasher.update(&body);
   let uniq: [u8; 32] = hasher.finalize().into();
   let uniq = hex::encode(uniq[0..16].to_vec());
-  CanisterHttpRequestArgument {
-    url: url.to_string(),
-    method: HttpMethod::POST,
-    body: Some(body),
-    max_response_bytes: None,
-    transform: Some(TransformContext {
-      function: TransformFunc(candid::Func {
-        principal: ic_cdk::api::id(),
-        method: "rpc_transform".to_string(),
+  let cycles = estimate_cycles(body.len() as u64 + 512, range.1 - range.0 + 1 + 512, 13);
+  (
+    CanisterHttpRequestArgument {
+      url: url.to_string(),
+      method: HttpMethod::POST,
+      body: Some(body),
+      max_response_bytes: Some(range.1 - range.0 + 1 + 512),
+      transform: Some(TransformContext {
+        function: TransformFunc(candid::Func {
+          principal: ic_cdk::api::id(),
+          method: "rpc_transform".to_string(),
+        }),
+        context: vec![],
       }),
-      context: vec![],
-    }),
-    headers: vec![
-      HttpHeader {
-        name: "Content-Type".to_string(),
-        value: "application/json".to_string(),
-      },
-      HttpHeader {
-        name: "User-Agent".to_string(),
-        value: format!("omnity_ord_canister/{}", env!("CARGO_PKG_VERSION")),
-      },
-      HttpHeader {
-        name: "Idempotency-Key".to_string(),
-        value: uniq.clone(),
-      },
-      HttpHeader {
-        name: "x-cloud-trace-context".to_string(),
-        value: uniq.clone(),
-      },
-      HttpHeader {
-        name: "Range".to_string(),
-        value: format!("bytes={}-{}", range.0, range.1),
-      },
-    ],
-  }
+      headers: vec![
+        HttpHeader {
+          name: "Content-Type".to_string(),
+          value: "application/json".to_string(),
+        },
+        HttpHeader {
+          name: "Idempotency-Key".to_string(),
+          value: uniq.clone(),
+        },
+        HttpHeader {
+          name: "x-cloud-trace-context".to_string(),
+          value: uniq.clone(),
+        },
+        HttpHeader {
+          name: "Range".to_string(),
+          value: format!("bytes={}-{}", range.0, range.1),
+        },
+      ],
+    },
+    cycles,
+  )
 }
 
-const MAX_RESPONSE_BYTES: u64 = 1_995_000;
+const MAX_RESPONSE_BYTES: u64 = 1_999_000;
 
-// pub(crate) fn estimate_cycles(req_len: usize, estimate_len: usize) -> u128 {
-//   171_360_000 + (req_len as u128) * 13_600 + (estimate_len as u128) * 27_200
-// }
+pub(crate) fn estimate_cycles(req_len: u64, rsp_len: u64, n: u128) -> u128 {
+  (3_000_000 + 60_000 * n + 400 * req_len as u128 + 800 * rsp_len as u128) * n
+}
 
 async fn make_single_request(
   args: CanisterHttpRequestArgument,
@@ -132,8 +132,7 @@ async fn make_single_request(
       Ok((response,)) => return Ok(response),
       Err((code, e)) => {
         retry += 1;
-        // 0.01T
-        cycles += 10_000_000_000;
+        cycles += cycles / 10;
         if retry > 3 {
           log!(
             ERROR,
@@ -159,21 +158,22 @@ async fn make_single_request(
   }
 }
 
-// max(estimate_len) = 1024 * 1024
 pub(crate) async fn make_rpc<R>(
   url: impl ToString,
   endpoint: &'static str,
   params: impl Into<serde_json::Value> + Clone,
-  estimate_cycle: u128,
+  max_length: u64,
 ) -> Result<R>
 where
   R: for<'a> Deserialize<'a> + std::fmt::Debug,
 {
-  let mut range = (0, MAX_RESPONSE_BYTES);
-  let mut buf = Vec::<u8>::with_capacity(MAX_RESPONSE_BYTES as usize);
+  let mut range = (0, max_length);
+  let mut buf = Vec::<u8>::with_capacity(max_length as usize);
+  let mut total_cycles = 0;
   loop {
-    let args = partial_request(url.to_string(), endpoint, params.clone(), range);
-    let response = make_single_request(args, estimate_cycle).await?;
+    let (args, cycles) = partial_request(url.to_string(), endpoint, params.clone(), range);
+    total_cycles += cycles;
+    let response = make_single_request(args, cycles).await?;
     if response.status == candid::Nat::from(200u32) {
       buf.extend_from_slice(response.body.as_slice());
       break;
@@ -204,7 +204,12 @@ where
       break;
     }
   }
-  log!(INFO, "reading all {} bytes from rpc", buf.len());
+  log!(
+    INFO,
+    "reading all {} bytes from rpc, consumed {} cycles",
+    buf.len(),
+    total_cycles
+  );
   let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       endpoint.to_string(),
@@ -227,13 +232,7 @@ where
 }
 
 pub(crate) async fn get_block_hash(url: &str, height: u32) -> Result<BlockHash> {
-  let r = make_rpc::<String>(
-    url,
-    "getblockhash",
-    serde_json::json!([height]),
-    20_950_923_600,
-  )
-  .await?;
+  let r = make_rpc::<String>(url, "getblockhash", serde_json::json!([height]), 1024 * 2).await?;
   let hash = BlockHash::from_str(&r).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       "getblockhash".to_string(),
@@ -249,19 +248,13 @@ pub(crate) async fn get_block_header(url: &str, hash: BlockHash) -> Result<GetBl
     url,
     "getblockheader",
     serde_json::json!([format!("{:x}", hash), true]),
-    20_950_923_600,
+    1024 * 2,
   )
   .await
 }
 
 pub(crate) async fn get_best_block_hash(url: &str) -> Result<BlockHash> {
-  let r = make_rpc::<String>(
-    url,
-    "getbestblockhash",
-    serde_json::json!([]),
-    20_950_923_600,
-  )
-  .await?;
+  let r = make_rpc::<String>(url, "getbestblockhash", serde_json::json!([]), 1024 * 2).await?;
   let hash = BlockHash::from_str(&r).map_err(|e| {
     OrdError::Rpc(RpcError::Decode(
       "getbestblockhash".to_string(),
@@ -277,7 +270,7 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
     url,
     "getblock",
     serde_json::json!([format!("{:x}", hash), 0]),
-    20_996_000_000,
+    MAX_RESPONSE_BYTES,
   )
   .await?;
   use hex::FromHex;

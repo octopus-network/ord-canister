@@ -1,6 +1,6 @@
 use crate::{index::entry::Entry, OutPoint, Txid};
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
-use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query};
+use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query, update};
 use rune_indexer_interface::*;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -38,6 +38,16 @@ pub fn rpc_transform(args: TransformArgs) -> HttpResponse {
     body: args.response.body.clone(),
     headers,
   }
+}
+
+#[update]
+pub fn admin_set_url(url: String) -> Result<(), String> {
+  let caller = ic_cdk::api::caller();
+  if !ic_cdk::api::is_controller(&caller) {
+    return Err("Not authorized".to_string());
+  }
+  crate::set_url(url);
+  Ok(())
 }
 
 #[query(hidden = true)]
