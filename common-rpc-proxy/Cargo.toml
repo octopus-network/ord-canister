@@ -1,10 +1,10 @@
 [package]
-name = "btc-rpc-proxy"
+name = "common-rpc-proxy"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "btc-rpc-proxy"
+name = "common-rpc-proxy"
 path = "src/main.rs"
 
 [dependencies]

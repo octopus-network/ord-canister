@@ -7,7 +7,7 @@ license = "MIT"
 edition = "2021"
 
 [workspace]
-members = [".", "btc-rpc-proxy", "crates/*"]
+members = [".", "common-rpc-proxy", "crates/*"]
 
 [lib]
 crate-type = ["cdylib"]

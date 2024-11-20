@@ -367,27 +367,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "btc-rpc-proxy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
- "clap",
- "http-body-util",
- "hyper",
- "hyper-tls",
- "hyper-util",
- "lazy_static",
- "linked-hash-map",
- "serde",
- "serde_bytes",
- "serde_json",
- "tokio",
- "unicase",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -569,6 +548,27 @@ name = "colorchoice"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b6a852b24ab71dffc585bcb46eaf7959d175cb865a7152e35b348d1b2960422"
+
+[[package]]
+name = "common-rpc-proxy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "clap",
+ "http-body-util",
+ "hyper",
+ "hyper-tls",
+ "hyper-util",
+ "lazy_static",
+ "linked-hash-map",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "tokio",
+ "unicase",
+]
 
 [[package]]
 name = "convert_case"
