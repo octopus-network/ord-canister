@@ -94,8 +94,7 @@ fn forward_uri(
       println!("query: {:?} ", query);
       format!("{}{}?{}", forward_url, req.uri().path(), query)
     }
-    // None => format!("{}{}", forward_url, req.uri().path()),\
-    None => format!("{}", forward_url),
+    None => format!("{}{}", forward_url, req.uri().path()),
   };
   let uri = forward_uri.parse::<Uri>();
   println!("forward_uri.parse::<Uri>: {:?} ", uri);
@@ -122,6 +121,7 @@ pub async fn call(
   request: Request<Incoming>,
 ) -> Result<Response<Full<Bytes>>, ProxyError> {
   let proxied_request = transform_request(&forward_uri, request).await?;
+  println!("final: {:?}", &proxied_request);
   let https = hyper_tls::HttpsConnector::new();
   let client = Client::builder(TokioExecutor::new()).build::<_, Full<Bytes>>(https);
   let response = client.request(proxied_request).await?;
