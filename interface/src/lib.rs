@@ -26,6 +26,15 @@ pub struct RuneBalance {
   pub balance: u128,
 }
 
+#[derive(CandidType)]
+pub struct OrdRuneBalance {
+  pub id: String,
+  pub confirmations: u32,
+  pub amount: u128,
+  pub divisibility: u8,
+  pub symbol: Option<String>,
+}
+
 #[derive(Debug, Eq, PartialEq, Error, CandidType)]
 pub enum OrdError {
   #[error("params: {0}")]
@@ -38,6 +47,14 @@ pub enum OrdError {
   Index(#[from] MintError),
   #[error("rpc error: {0}")]
   Rpc(#[from] RpcError),
+  #[error("recoverable reorg at height {height} with depth {depth}")]
+  Recoverable { height: u32, depth: u32 },
+  #[error("unrecoverable reorg")]
+  Unrecoverable,
+  #[error("outpoint not found")]
+  OutPointNotFound,
+  #[error("not enough confirmations")]
+  NotEnoughConfirmations,
 }
 
 #[derive(Debug, Clone, Error, Eq, PartialEq, CandidType)]

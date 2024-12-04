@@ -24,7 +24,7 @@ use ic_stable_memory::{
   collections::{SBTreeMap, SHashMap, SVec},
   SBox,
 };
-pub use index::entry::{RuneBalance, RuneEntry};
+pub use index::entry::{RuneBalance, RuneEntry, RuneUpdate};
 pub use ordinals::{
   varint, Artifact, Charm, Edict, Epoch, Etching, Height, Pile, Rarity, Rune, RuneId, Runestone,
   Sat, SatPoint, SpacedRune, Terms,
@@ -41,9 +41,13 @@ thread_local! {
   static TRANSACTION_ID_TO_RUNE: RefCell<Option<SHashMap<TxidValue, u128>>> = RefCell::new(None);
   static HEIGHT_TO_BLOCK_HASH: RefCell<Option<SBTreeMap<u32, [u8; 32]>>> = RefCell::new(None);
   static RPC_URL: RefCell<Option<SBox<String>>> = RefCell::new(None);
+
+  static HEIGHT_TO_OUTPOINTS: RefCell<Option<SHashMap<u32, SVec<OutPointValue>>>> = RefCell::new(None);
+  static OUTPOINT_TO_HEIGHT: RefCell<Option<SHashMap<OutPointValue, u32>>> = RefCell::new(None);
+  static HEIGHT_TO_RUNE_UPDATES: RefCell<Option<SHashMap<u32, SVec<RuneUpdate>>>> = RefCell::new(None);
+  static HEIGHT_TO_RUNE_IDS: RefCell<Option<SHashMap<u32, SVec<RuneId>>>> = RefCell::new(None);
 }
 
-pub const REQUIRED_CONFIRMATIONS: u32 = 4;
 pub const FIRST_HEIGHT: u32 = 839999;
 pub const FIRST_BLOCK_HASH: &'static str =
   "0000000000000000000172014ba58d66455762add0512355ad651207918494ab";
@@ -60,6 +64,13 @@ pub(crate) fn highest_block() -> (u32, BlockHash) {
     let mut buffer = Cursor::new(*hash);
     let hash = BlockHash::consensus_decode(&mut buffer).unwrap();
     (*height, hash)
+  })
+}
+pub(crate) fn block_hash(height: u32) -> Option<BlockHash> {
+  crate::HEIGHT_TO_BLOCK_HASH.with_borrow(|h| {
+    let hash = h.as_ref().expect("not initialized").get(&height)?;
+    let mut buffer = Cursor::new(*hash);
+    BlockHash::consensus_decode(&mut buffer).ok()
   })
 }
 
@@ -85,6 +96,10 @@ pub(crate) fn init_storage() {
   RUNE_TO_RUNE_ID.with_borrow_mut(|r| r.replace(SHashMap::new()));
   TRANSACTION_ID_TO_RUNE.with_borrow_mut(|t| t.replace(SHashMap::new()));
   HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| h.replace(SBTreeMap::new()));
+  HEIGHT_TO_OUTPOINTS.with_borrow_mut(|h| h.replace(SHashMap::new()));
+  OUTPOINT_TO_HEIGHT.with_borrow_mut(|h| h.replace(SHashMap::new()));
+  HEIGHT_TO_RUNE_UPDATES.with_borrow_mut(|h| h.replace(SHashMap::new()));
+  HEIGHT_TO_RUNE_IDS.with_borrow_mut(|h| h.replace(SHashMap::new()));
 }
 
 pub(crate) fn persistence() {
@@ -105,12 +120,28 @@ pub(crate) fn persistence() {
   let height_to_block_hash: SBTreeMap<u32, [u8; 32]> =
     HEIGHT_TO_BLOCK_HASH.with(|h| h.borrow_mut().take().unwrap());
   let boxed_height_to_block_hash = SBox::new(height_to_block_hash).expect("MemoryOverflow");
+  let height_to_outpoints: SHashMap<u32, SVec<OutPointValue>> =
+    HEIGHT_TO_OUTPOINTS.with(|h| h.borrow_mut().take().unwrap());
+  let boxed_height_to_outpoints = SBox::new(height_to_outpoints).expect("MemoryOverflow");
+  let outpoint_to_height: SHashMap<OutPointValue, u32> =
+    OUTPOINT_TO_HEIGHT.with(|h| h.borrow_mut().take().unwrap());
+  let boxed_outpoint_to_height = SBox::new(outpoint_to_height).expect("MemoryOverflow");
+  let height_to_rune_updates: SHashMap<u32, SVec<RuneUpdate>> =
+    HEIGHT_TO_RUNE_UPDATES.with(|h| h.borrow_mut().take().unwrap());
+  let boxed_height_to_rune_updates = SBox::new(height_to_rune_updates).expect("MemoryOverflow");
+  let height_to_rune_ids: SHashMap<u32, SVec<RuneId>> =
+    HEIGHT_TO_RUNE_IDS.with(|h| h.borrow_mut().take().unwrap());
+  let boxed_height_to_rune_ids = SBox::new(height_to_rune_ids).expect("MemoryOverflow");
   ic_stable_memory::store_custom_data(0, boxed_rpc_url);
   ic_stable_memory::store_custom_data(1, boxed_outpoint_to_balances);
   ic_stable_memory::store_custom_data(2, boxed_rune_id_to_rune_entry);
   ic_stable_memory::store_custom_data(3, boxed_rune_to_rune_id);
   ic_stable_memory::store_custom_data(4, boxed_transaction_id_to_rune);
   ic_stable_memory::store_custom_data(5, boxed_height_to_block_hash);
+  ic_stable_memory::store_custom_data(6, boxed_height_to_outpoints);
+  ic_stable_memory::store_custom_data(7, boxed_outpoint_to_height);
+  ic_stable_memory::store_custom_data(8, boxed_height_to_rune_updates);
+  ic_stable_memory::store_custom_data(9, boxed_height_to_rune_ids);
   ic_stable_memory::stable_memory_pre_upgrade().expect("MemoryOverflow");
 }
 
@@ -127,12 +158,24 @@ pub(crate) fn restore() {
     ic_stable_memory::retrieve_custom_data::<SHashMap<TxidValue, u128>>(4).unwrap();
   let height_to_block_hash =
     ic_stable_memory::retrieve_custom_data::<SBTreeMap<u32, [u8; 32]>>(5).unwrap();
+  let height_to_outpoints =
+    ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<OutPointValue>>>(6).unwrap();
+  let outpoint_to_height =
+    ic_stable_memory::retrieve_custom_data::<SHashMap<OutPointValue, u32>>(7).unwrap();
+  let height_to_rune_updates =
+    ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<RuneUpdate>>>(8).unwrap();
+  let height_to_rune_ids =
+    ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<RuneId>>>(9).unwrap();
   RPC_URL.with_borrow_mut(|r| r.replace(rpc_url.into_inner()));
   OUTPOINT_TO_RUNE_BALANCES.with_borrow_mut(|b| b.replace(outpoint_to_rune_balances.into_inner()));
   RUNE_ID_TO_RUNE_ENTRY.with_borrow_mut(|r| r.replace(rune_id_to_rune_entry.into_inner()));
   RUNE_TO_RUNE_ID.with_borrow_mut(|r| r.replace(run_to_rune_id.into_inner()));
   TRANSACTION_ID_TO_RUNE.with_borrow_mut(|t| t.replace(transaction_id_to_rune.into_inner()));
   HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| h.replace(height_to_block_hash.into_inner()));
+  HEIGHT_TO_OUTPOINTS.with_borrow_mut(|h| h.replace(height_to_outpoints.into_inner()));
+  OUTPOINT_TO_HEIGHT.with_borrow_mut(|h| h.replace(outpoint_to_height.into_inner()));
+  HEIGHT_TO_RUNE_UPDATES.with_borrow_mut(|h| h.replace(height_to_rune_updates.into_inner()));
+  HEIGHT_TO_RUNE_IDS.with_borrow_mut(|h| h.replace(height_to_rune_ids.into_inner()));
 }
 
 pub(crate) fn get_url() -> String {
@@ -177,4 +220,39 @@ where
   F: Fn(&mut SHashMap<TxidValue, u128>) -> R,
 {
   crate::TRANSACTION_ID_TO_RUNE.with_borrow_mut(|t| f(t.as_mut().expect("not initialized")))
+}
+
+pub(crate) fn height_to_block_hash<F, R>(f: F) -> R
+where
+  F: Fn(&mut SBTreeMap<u32, [u8; 32]>) -> R,
+{
+  crate::HEIGHT_TO_BLOCK_HASH.with_borrow_mut(|h| f(h.as_mut().expect("not initialized")))
+}
+
+pub(crate) fn height_to_outpoints<F, R>(f: F) -> R
+where
+  F: Fn(&mut SHashMap<u32, SVec<OutPointValue>>) -> R,
+{
+  crate::HEIGHT_TO_OUTPOINTS.with_borrow_mut(|h| f(h.as_mut().expect("not initialized")))
+}
+
+pub(crate) fn outpoint_to_height<F, R>(f: F) -> R
+where
+  F: Fn(&mut SHashMap<OutPointValue, u32>) -> R,
+{
+  crate::OUTPOINT_TO_HEIGHT.with_borrow_mut(|h| f(h.as_mut().expect("not initialized")))
+}
+
+pub(crate) fn height_to_rune_updates<F, R>(f: F) -> R
+where
+  F: Fn(&mut SHashMap<u32, SVec<RuneUpdate>>) -> R,
+{
+  crate::HEIGHT_TO_RUNE_UPDATES.with_borrow_mut(|h| f(h.as_mut().expect("not initialized")))
+}
+
+pub(crate) fn height_to_rune_ids<F, R>(f: F) -> R
+where
+  F: Fn(&mut SHashMap<u32, SVec<RuneId>>) -> R,
+{
+  crate::HEIGHT_TO_RUNE_IDS.with_borrow_mut(|h| f(h.as_mut().expect("not initialized")))
 }

@@ -55,6 +55,44 @@ impl AsFixedSizeBytes for RuneBalance {
 
 impl StableType for RuneBalance {}
 
+#[derive(Debug, Copy, Clone)]
+pub struct RuneUpdate {
+  pub id: RuneId,
+  pub burned: u128,
+  pub mints: u128,
+}
+
+impl AsFixedSizeBytes for RuneUpdate {
+  type Buf = [u8; Self::SIZE];
+
+  const SIZE: usize = RuneId::SIZE + 16 + 16;
+
+  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
+    let mut offset = 0;
+    self
+      .id
+      .as_fixed_size_bytes(&mut buf[offset..offset + RuneId::SIZE]);
+    offset += RuneId::SIZE;
+    self
+      .burned
+      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
+    offset += 16;
+    self.mints.as_fixed_size_bytes(&mut buf[offset..]);
+  }
+
+  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
+    let mut offset = 0;
+    let id = RuneId::from_fixed_size_bytes(&buf[offset..offset + RuneId::SIZE]);
+    offset += RuneId::SIZE;
+    let burned = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
+    offset += 16;
+    let mints = u128::from_fixed_size_bytes(&buf[offset..]);
+    Self { id, burned, mints }
+  }
+}
+
+impl StableType for RuneUpdate {}
+
 pub(crate) type HeaderValue = [u8; 80];
 
 impl Entry for Header {
@@ -431,7 +469,7 @@ impl Entry for RuneId {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Copy, Debug)]
-pub(crate) struct OutPointValue(pub [u8; 36]);
+pub(crate) struct OutPointValue([u8; 36]);
 
 impl Entry for OutPoint {
   type Value = OutPointValue;
