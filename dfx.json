@@ -4,7 +4,13 @@
       "gzip": true,
       "candid": "ord_indexer.did",
       "package": "ord-canister",
-      "type": "rust"
+      "type": "custom",
+      "wasm": "target/wasm32-unknown-unknown/release/ord_canister.wasm",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
     }
   },
   "defaults": {

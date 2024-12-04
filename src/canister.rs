@@ -112,7 +112,7 @@ pub fn rpc_transform(args: TransformArgs) -> HttpResponse {
 }
 
 #[update]
-pub fn admin_set_url(url: String) -> Result<(), String> {
+pub fn set_url(url: String) -> Result<(), String> {
   let caller = ic_cdk::api::caller();
   if !ic_cdk::api::is_controller(&caller) {
     return Err("Not authorized".to_string());
