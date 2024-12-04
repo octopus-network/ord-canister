@@ -51,40 +51,38 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Vec<OrdRuneBalance>>, O
     };
     let k = OutPoint::store(outpoint);
 
-    if let Some(height) = crate::outpoint_to_height(|o| o.get(&k).map(|h| *h)) {
-      crate::outpoint_to_rune_balances(|b| match b.get(&k) {
-        Some(balances) => {
-          let mut outpoint_balances = Vec::new();
-          for balance in balances.iter() {
-            let rune_id = balance.id;
-            let rune_entry =
-              crate::rune_id_to_rune_entry(|ritre| ritre.get(&rune_id).map(|e| (*e)));
-            if let Some(rune_entry) = rune_entry {
-              outpoint_balances.push(OrdRuneBalance {
-                id: rune_id.to_string(),
-                confirmations: cur_height - height + 1,
-                amount: balance.balance,
-                divisibility: rune_entry.divisibility,
-                symbol: rune_entry.symbol.map(|c| c.to_string()),
-              });
-            } else {
-              log!(
-                WARNING,
-                "Rune not found for block {} tx {}",
-                rune_id.block,
-                rune_id.tx
-              );
-            }
-          }
-          piles.push(outpoint_balances);
+    crate::outpoint_to_rune_balances(|b| match b.get(&k) {
+      Some(balances) => {
+        let mut confirmations = 99;
+
+        if let Some(height) = crate::outpoint_to_height(|o| o.get(&k).map(|h| *h)) {
+          confirmations = cur_height - height + 1;
         }
-        None => (),
-      });
-    } else {
-      log!(WARNING, "Height not found for outpoint {}", str_outpoint);
-      piles.push(vec![]);
-      continue;
-    }
+        let mut outpoint_balances = Vec::new();
+        for balance in balances.iter() {
+          let rune_id = balance.id;
+          let rune_entry = crate::rune_id_to_rune_entry(|ritre| ritre.get(&rune_id).map(|e| (*e)));
+          if let Some(rune_entry) = rune_entry {
+            outpoint_balances.push(OrdRuneBalance {
+              id: rune_id.to_string(),
+              confirmations,
+              amount: balance.balance,
+              divisibility: rune_entry.divisibility,
+              symbol: rune_entry.symbol.map(|c| c.to_string()),
+            });
+          } else {
+            log!(
+              WARNING,
+              "Rune not found for block {} tx {}",
+              rune_id.block,
+              rune_id.tx
+            );
+          }
+        }
+        piles.push(outpoint_balances);
+      }
+      None => (),
+    });
   }
 
   Ok(piles)
