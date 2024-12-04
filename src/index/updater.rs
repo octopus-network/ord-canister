@@ -51,8 +51,3 @@ pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
     .then(|| BlockData::from(block))
     .ok_or(OrdError::BlockVerification(height))
 }
-
-// pub(crate) async fn get_raw_tx(txid: Txid) -> Result<GetRawTransactionResult> {
-//   let url = get_url();
-//   rpc::get_raw_tx(&url, txid).await
-// }
