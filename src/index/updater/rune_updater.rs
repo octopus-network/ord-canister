@@ -204,6 +204,18 @@ impl RuneUpdater {
       }
 
       outpoint_to_rune_balances(|b| b.insert(outpoint.store(), vec).expect("MemoryOverflow"));
+      height_to_outpoints(|o| {
+        let mut outpoints = SVec::new();
+        if let Some(existing) = o.get(&self.height) {
+          for value in (*existing).iter() {
+            outpoints.push(*value).expect("out of memory");
+          }
+        }
+        outpoints.push(outpoint.store()).expect("out of memory");
+        o.insert(self.height, outpoints)
+      })
+      .expect("MemoryOverflow");
+      outpoint_to_height(|h| h.insert(outpoint.store(), self.height)).expect("MemoryOverflow");
     }
 
     // increment entries with burned runes
@@ -228,6 +240,25 @@ impl RuneUpdater {
       let mut entry = crate::rune_id_to_rune_entry(|r| *r.get(&rune_id).unwrap());
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
       crate::rune_id_to_rune_entry(|r| r.insert(rune_id, entry)).expect("MemoryOverflow");
+      crate::height_to_rune_updates(|u| {
+        let mut updates = SVec::new();
+        if let Some(existing) = u.get(&self.height) {
+          for value in (*existing).iter() {
+            if value.id != rune_id {
+              updates.push(*value).expect("out of memory");
+            }
+          }
+        }
+        updates
+          .push(RuneUpdate {
+            id: rune_id,
+            mints: entry.mints,
+            burned: entry.burned,
+          })
+          .expect("MemoryOverflow");
+        u.insert(self.height, updates)
+      })
+      .expect("MemoryOverflow");
     }
 
     Ok(())
@@ -288,6 +319,17 @@ impl RuneUpdater {
     };
 
     crate::rune_id_to_rune_entry(|r| r.insert(id, entry)).expect("Overflow");
+    crate::height_to_rune_ids(|h| {
+      let mut ids = SVec::new();
+      if let Some(existing) = h.get(&self.height) {
+        for value in (*existing).iter() {
+          ids.push(*value).expect("out of memory");
+        }
+      }
+      ids.push(id).expect("MemoryOverflow");
+      h.insert(self.height, ids)
+    })
+    .expect("MemoryOverflow");
 
     match &self.event_handler {
       Some(handler) => handler(Event::RuneEtched {
@@ -350,6 +392,25 @@ impl RuneUpdater {
     rune_entry.mints += 1;
 
     crate::rune_id_to_rune_entry(|r| r.insert(id, rune_entry)).expect("MemoryOverflow");
+    crate::height_to_rune_updates(|u| {
+      let mut updates = SVec::new();
+      if let Some(existing) = u.get(&self.height) {
+        for value in (*existing).iter() {
+          if value.id != id {
+            updates.push(*value).expect("out of memory");
+          }
+        }
+      }
+      updates
+        .push(RuneUpdate {
+          id,
+          mints: rune_entry.mints,
+          burned: rune_entry.burned,
+        })
+        .expect("MemoryOverflow");
+      u.insert(self.height, updates)
+    })
+    .expect("MemoryOverflow");
 
     Ok(Some(Lot(amount)))
   }

@@ -1,6 +1,7 @@
 mod rune_updater;
 
 use self::rune_updater::RuneUpdater;
+use crate::index::reorg::Reorg;
 use crate::*;
 use rune_indexer_interface::OrdError;
 use std::collections::HashMap;
@@ -27,6 +28,7 @@ impl From<Block> for BlockData {
 }
 
 pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
+  Reorg::detect_reorg(&block, height).await?;
   let mut updater = RuneUpdater {
     block_time: block.header.time,
     burned: HashMap::new(),
@@ -51,8 +53,3 @@ pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
     .then(|| BlockData::from(block))
     .ok_or(OrdError::BlockVerification(height))
 }
-
-// pub(crate) async fn get_raw_tx(txid: Txid) -> Result<GetRawTransactionResult> {
-//   let url = get_url();
-//   rpc::get_raw_tx(&url, txid).await
-// }

@@ -3,12 +3,24 @@ type OrdError = variant {
   Rpc : RpcError;
   Overflow;
   Params : text;
+  NotEnoughConfirmations;
   Index : MintError;
+  Unrecoverable;
   BlockVerification : nat32;
+  OutPointNotFound;
+  Recoverable : record { height : nat32; depth : nat32 };
+};
+type OrdRuneBalance = record {
+  id : text;
+  confirmations : nat32;
+  divisibility : nat8;
+  amount : nat;
+  symbol : opt text;
 };
 type Result = variant { Ok; Err : text };
 type Result_1 = variant { Ok : record { nat32; text }; Err : OrdError };
 type Result_2 = variant { Ok : vec RuneBalance; Err : OrdError };
+type Result_3 = variant { Ok : vec vec OrdRuneBalance; Err : OrdError };
 type RpcError = variant {
   Io : record { text; text; text };
   Endpoint : record { text; text; text };
@@ -20,4 +32,5 @@ service : (text) -> {
   admin_set_url : (text) -> (Result);
   get_height : () -> (Result_1) query;
   get_runes_by_utxo : (text, nat32) -> (Result_2) query;
+  query_runes : (vec text) -> (Result_3) query;
 }

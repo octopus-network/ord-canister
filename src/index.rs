@@ -1,6 +1,7 @@
 use self::{entry::Entry, event::Event, lot::Lot};
 use super::*;
 use crate::ic_log::*;
+use crate::index::reorg::Reorg;
 use bitcoin::block::Header;
 use ic_canister_log::log;
 use rune_indexer_interface::MintError;
@@ -12,6 +13,7 @@ pub use self::entry::RuneEntry;
 pub(crate) mod entry;
 pub mod event;
 mod lot;
+mod reorg;
 mod updater;
 
 #[allow(dead_code)]
@@ -135,7 +137,15 @@ pub fn sync(secs: u64) {
       match get_best_from_rpc().await {
         Ok((best, _)) => {
           log!(INFO, "our best = {}, their best = {}", height, best);
-          if height + REQUIRED_CONFIRMATIONS >= best {
+          if height > best {
+            log!(
+              CRITICAL,
+              "RPC best height ({}) is behind local height ({})",
+              best,
+              height
+            );
+            return;
+          } else if height == best {
             sync(300);
           } else {
             match updater::get_block(height + 1).await {
@@ -156,6 +166,19 @@ pub fn sync(secs: u64) {
                 log!(INFO, "indexing block {:?}", block.header);
                 if let Err(e) = updater::index_block(height + 1, block).await {
                   log!(CRITICAL, "index error: {:?}", e);
+                  match e {
+                    OrdError::Recoverable { height, depth } => {
+                      Reorg::handle_reorg(height, depth);
+                    }
+                    OrdError::Unrecoverable => {
+                      log!(
+                        CRITICAL,
+                        "unrecoverable reorg detected at height {}",
+                        height
+                      );
+                    }
+                    _ => (),
+                  };
                 }
                 sync(0);
               }

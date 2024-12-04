@@ -1,120 +1,90 @@
+use rune_indexer_interface::OrdError;
 use {super::*, updater::BlockData};
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum Error {
-  Recoverable { height: u32, depth: u32 },
-  Unrecoverable,
-}
-
-impl Display for Error {
-  fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-    match self {
-      Self::Recoverable { height, depth } => {
-        write!(f, "{depth} block deep reorg detected at height {height}")
-      }
-      Self::Unrecoverable => write!(f, "unrecoverable reorg detected"),
-    }
-  }
-}
-
-impl std::error::Error for Error {}
-
-const MAX_SAVEPOINTS: u32 = 2;
-const SAVEPOINT_INTERVAL: u32 = 10;
-const CHAIN_TIP_DISTANCE: u32 = 21;
+const MAX_RECOVERABLE_REORG_DEPTH: u32 = 6;
 
 pub(crate) struct Reorg {}
 
 impl Reorg {
-  pub(crate) fn detect_reorg(block: &BlockData, height: u32, index: &Index) -> Result {
+  pub(crate) async fn detect_reorg(block: &BlockData, height: u32) -> Result<()> {
     let bitcoind_prev_blockhash = block.header.prev_blockhash;
 
-    match index.block_hash(height.checked_sub(1))? {
+    match crate::block_hash(height.checked_sub(1).expect("height overflow")) {
       Some(index_prev_blockhash) if index_prev_blockhash == bitcoind_prev_blockhash => Ok(()),
       Some(index_prev_blockhash) if index_prev_blockhash != bitcoind_prev_blockhash => {
-        let max_recoverable_reorg_depth =
-          (MAX_SAVEPOINTS - 1) * SAVEPOINT_INTERVAL + height % SAVEPOINT_INTERVAL;
+        for depth in 2..MAX_RECOVERABLE_REORG_DEPTH {
+          let index_block_hash =
+            crate::block_hash(height.checked_sub(depth).expect("height overflow"))
+              .ok_or(OrdError::Unrecoverable)?;
 
-        for depth in 1..max_recoverable_reorg_depth {
-          let index_block_hash = index.block_hash(height.checked_sub(depth))?;
-          let bitcoind_block_hash = index
-            .client
-            .get_block_hash(u64::from(height.saturating_sub(depth)))
-            .into_option()?;
+          let bitcoin_canister_block_hash = crate::btc_canister::get_block_hash(
+            height.checked_sub(depth).expect("height overflow"),
+          )
+          .await?;
 
-          if index_block_hash == bitcoind_block_hash {
-            return Err(anyhow!(reorg::Error::Recoverable { height, depth }));
+          if index_block_hash == bitcoin_canister_block_hash {
+            return Err(OrdError::Recoverable { height, depth });
           }
         }
 
-        Err(anyhow!(reorg::Error::Unrecoverable))
+        Err(OrdError::Unrecoverable)
       }
       _ => Ok(()),
     }
   }
 
-  pub(crate) fn handle_reorg(index: &Index, height: u32, depth: u32) -> Result {
-    log::info!("rolling back database after reorg of depth {depth} at height {height}");
-
-    if let redb::Durability::None = index.durability {
-      panic!("set index durability to `Durability::Immediate` to test reorg handling");
-    }
-
-    let mut wtx = index.begin_write()?;
-
-    let oldest_savepoint =
-      wtx.get_persistent_savepoint(wtx.list_persistent_savepoints()?.min().unwrap())?;
-
-    wtx.restore_savepoint(&oldest_savepoint)?;
-
-    Index::increment_statistic(&wtx, Statistic::Commits, 1)?;
-    wtx.commit()?;
-
-    log::info!(
-      "successfully rolled back database to height {}",
-      index.begin_read()?.block_count()?
+  pub(crate) fn handle_reorg(height: u32, depth: u32) {
+    log!(
+      INFO,
+      "rolling back database after reorg of depth {depth} at height {height}"
     );
 
-    Ok(())
-  }
+    for h in (height - depth + 1..height).rev() {
+      crate::height_to_outpoints(|o| match o.get(&h) {
+        Some(outpoints) => {
+          outpoints.iter().for_each(|outpoint| {
+            crate::outpoint_to_rune_balances(|balances| balances.remove(&outpoint));
+            crate::outpoint_to_height(|o| o.remove(&outpoint));
+          });
+        }
+        None => {}
+      });
+      crate::height_to_outpoints(|o| o.remove(&h));
 
-  pub(crate) fn update_savepoints(index: &Index, height: u32) -> Result {
-    if let redb::Durability::None = index.durability {
-      return Ok(());
+      crate::height_to_rune_ids(|htri| match htri.get(&h) {
+        Some(rune_ids) => {
+          rune_ids.iter().for_each(|rune_id| {
+            crate::rune_id_to_rune_entry(|rune_entry| rune_entry.remove(&rune_id));
+          });
+        }
+        None => {}
+      });
+      crate::height_to_rune_ids(|htri| htri.remove(&h));
+
+      crate::height_to_rune_updates(|htru| htru.remove(&h));
+
+      crate::height_to_block_hash(|htbh| htbh.remove(&h));
     }
 
-    if (height < SAVEPOINT_INTERVAL || height % SAVEPOINT_INTERVAL == 0)
-      && u32::try_from(
-        index
-          .settings
-          .bitcoin_rpc_client(None)?
-          .get_blockchain_info()?
-          .headers,
-      )
-      .unwrap()
-      .saturating_sub(height)
-        <= CHAIN_TIP_DISTANCE
-    {
-      let wtx = index.begin_write()?;
-
-      let savepoints = wtx.list_persistent_savepoints()?.collect::<Vec<u64>>();
-
-      if savepoints.len() >= usize::try_from(MAX_SAVEPOINTS).unwrap() {
-        wtx.delete_persistent_savepoint(savepoints.into_iter().min().unwrap())?;
+    crate::height_to_rune_updates(|htru| match htru.get(&(height - depth)) {
+      Some(rune_updates) => {
+        rune_updates.iter().for_each(|rune_update| {
+          crate::rune_id_to_rune_entry(|ritre| {
+            if let Some(mut rune_entry) = ritre.get_mut(&rune_update.id) {
+              rune_entry.mints = rune_update.mints;
+              rune_entry.burned = rune_update.burned;
+            }
+            true
+          });
+        });
       }
+      None => {}
+    });
 
-      Index::increment_statistic(&wtx, Statistic::Commits, 1)?;
-      wtx.commit()?;
-
-      let wtx = index.begin_write()?;
-
-      log::debug!("creating savepoint at height {}", height);
-      wtx.persistent_savepoint()?;
-
-      Index::increment_statistic(&wtx, Statistic::Commits, 1)?;
-      wtx.commit()?;
-    }
-
-    Ok(())
+    log!(
+      INFO,
+      "successfully rolled back database to height {}",
+      height - depth,
+    );
   }
 }
