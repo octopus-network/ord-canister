@@ -111,20 +111,6 @@ pub(crate) async fn get_best_from_rpc() -> Result<(u32, BlockHash)> {
   Ok((header.height.try_into().expect("usize to u32"), hash))
 }
 
-#[cfg(feature = "cmp-header")]
-pub(crate) async fn cmp_header(height: u32, from_rpc: &BlockHash) {
-  match crate::btc_canister::get_block_hash(height).await {
-    Ok(hash) => log!(
-      INFO,
-      "cross compare at {}, canister={:x}, rpc={:x}",
-      height,
-      hash,
-      from_rpc
-    ),
-    Err(e) => log!(ERROR, "error: {:?}", e),
-  }
-}
-
 pub fn sync(secs: u64) {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
     ic_cdk::spawn(async move {

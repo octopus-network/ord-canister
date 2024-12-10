@@ -1,16 +1,11 @@
 {
   "canisters": {
-    "ord-indexer": {
+    "ord-canister": {
       "gzip": true,
-      "candid": "ord_indexer.did",
+      "candid": "ord-canister.did",
       "package": "ord-canister",
-      "type": "custom",
-      "wasm": "target/wasm32-unknown-unknown/release/ord_canister.wasm",
-      "metadata": [
-        {
-          "name": "candid:service"
-        }
-      ]
+      "crate": "ord_canister",
+      "type": "rust"
     }
   },
   "defaults": {
