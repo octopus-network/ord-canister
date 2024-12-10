@@ -150,19 +150,6 @@ pub fn sync(secs: u64) {
           } else {
             match updater::get_block(height + 1).await {
               Ok(block) => {
-                #[cfg(feature = "cmp-header")]
-                cmp_header(height + 1, &block.header.block_hash()).await;
-                if block.header.prev_blockhash != current {
-                  log!(
-                    CRITICAL,
-                    "reorg detected! our best = {}({:x}), the new block to be applied {:?}",
-                    height,
-                    current,
-                    block.header
-                  );
-                  sync(300);
-                  return;
-                }
                 log!(INFO, "indexing block {:?}", block.header);
                 if let Err(e) = updater::index_block(height + 1, block).await {
                   log!(CRITICAL, "index error: {:?}", e);
@@ -176,6 +163,7 @@ pub fn sync(secs: u64) {
                         "unrecoverable reorg detected at height {}",
                         height
                       );
+                      return;
                     }
                     _ => (),
                   };

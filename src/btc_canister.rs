@@ -35,7 +35,7 @@ pub struct GetBlockHeadersResponse {
 pub async fn get_block_hash(height: u32) -> crate::Result<BlockHash> {
   let req = GetBlockHeadersRequest {
     start_height: height,
-    end_height: None,
+    end_height: Some(height),
     network: Network::Mainnet,
   };
   let res: (GetBlockHeadersResponse,) = ic_cdk::call(*BTC, "bitcoin_get_block_headers", (req,))
