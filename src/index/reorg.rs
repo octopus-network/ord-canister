@@ -1,14 +1,15 @@
+use crate::index::INFO;
+use crate::Result;
+use bitcoin::block::BlockHash;
+use ic_canister_log::log;
 use rune_indexer_interface::OrdError;
-use {super::*, updater::BlockData};
 
 const MAX_RECOVERABLE_REORG_DEPTH: u32 = 6;
 
 pub(crate) struct Reorg {}
 
 impl Reorg {
-  pub(crate) async fn detect_reorg(block: &BlockData, height: u32) -> Result<()> {
-    let bitcoind_prev_blockhash = block.header.prev_blockhash;
-
+  pub(crate) async fn detect_reorg(bitcoind_prev_blockhash: BlockHash, height: u32) -> Result<()> {
     match crate::block_hash(height.checked_sub(1).expect("height overflow")) {
       Some(index_prev_blockhash) if index_prev_blockhash == bitcoind_prev_blockhash => Ok(()),
       Some(index_prev_blockhash) if index_prev_blockhash != bitcoind_prev_blockhash => {
@@ -20,7 +21,8 @@ impl Reorg {
           let bitcoin_canister_block_hash = crate::btc_canister::get_block_hash(
             height.checked_sub(depth).expect("height overflow"),
           )
-          .await?;
+          .await?
+          .ok_or(OrdError::Unrecoverable)?;
 
           if index_block_hash == bitcoin_canister_block_hash {
             return Err(OrdError::Recoverable { height, depth });

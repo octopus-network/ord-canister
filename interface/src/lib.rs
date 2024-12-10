@@ -41,8 +41,10 @@ pub enum OrdError {
   Params(String),
   #[error("overflow")]
   Overflow,
-  #[error("block verification")]
-  BlockVerification(u32),
+  #[error("wrong block hash: {0}")]
+  WrongBlockHash(String),
+  #[error("wrong block merkle root: {0}")]
+  WrongBlockMerkleRoot(String),
   #[error("index error: {0}")]
   Index(#[from] MintError),
   #[error("rpc error: {0}")]

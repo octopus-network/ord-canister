@@ -5,10 +5,11 @@ type OrdError = variant {
   Params : text;
   NotEnoughConfirmations;
   Index : MintError;
+  WrongBlockHash : text;
   Unrecoverable;
-  BlockVerification : nat32;
   OutPointNotFound;
   Recoverable : record { height : nat32; depth : nat32 };
+  WrongBlockMerkleRoot : text;
 };
 type OrdRuneBalance = record {
   id : text;
