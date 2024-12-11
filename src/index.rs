@@ -1,14 +1,13 @@
 use self::{entry::Entry, event::Event, lot::Lot};
 use super::*;
 use crate::ic_log::*;
-use crate::index::reorg::Reorg;
 use bitcoin::block::Header;
-use ic_canister_log::log;
 use rune_indexer_interface::MintError;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
 pub use self::entry::RuneEntry;
+pub use updater::update_index;
 
 pub(crate) mod entry;
 pub mod event;
@@ -102,86 +101,4 @@ pub(crate) fn get_rune_balances_for_output(
     }
     None => Ok(BTreeMap::new()),
   })
-}
-
-pub(crate) async fn get_best_from_rpc() -> Result<(u32, BlockHash)> {
-  let url = get_url();
-  let hash = rpc::get_best_block_hash(&url).await?;
-  let header = rpc::get_block_header(&url, hash).await?;
-  Ok((header.height.try_into().expect("usize to u32"), hash))
-}
-
-#[cfg(feature = "cmp-header")]
-pub(crate) async fn cmp_header(height: u32, from_rpc: &BlockHash) {
-  match crate::btc_canister::get_block_hash(height).await {
-    Ok(hash) => log!(
-      INFO,
-      "cross compare at {}, canister={:x}, rpc={:x}",
-      height,
-      hash,
-      from_rpc
-    ),
-    Err(e) => log!(ERROR, "error: {:?}", e),
-  }
-}
-
-pub fn sync(secs: u64) {
-  ic_cdk_timers::set_timer(std::time::Duration::from_secs(secs), || {
-    ic_cdk::spawn(async move {
-      let (height, current) = crate::highest_block();
-      // uncomment this to test
-      // if height >= 840_000 {
-      //   ic_cdk::println!("we are done!");
-      //   return;
-      // }
-      match get_best_from_rpc().await {
-        Ok((best, _)) => {
-          log!(INFO, "our best = {}, their best = {}", height, best);
-          if height > best {
-            log!(
-              CRITICAL,
-              "RPC best height ({}) is behind local height ({})",
-              best,
-              height
-            );
-            return;
-          } else if height == best {
-            sync(300);
-          } else {
-            match updater::get_block(height + 1).await {
-              Ok(block) => {
-                log!(INFO, "indexing block {:?}", block.header);
-                if let Err(e) = updater::index_block(height + 1, block).await {
-                  log!(CRITICAL, "index error: {:?}", e);
-                  match e {
-                    OrdError::Recoverable { height, depth } => {
-                      Reorg::handle_reorg(height, depth);
-                    }
-                    OrdError::Unrecoverable => {
-                      log!(
-                        CRITICAL,
-                        "unrecoverable reorg detected at height {}",
-                        height
-                      );
-                      return;
-                    }
-                    _ => (),
-                  };
-                }
-                sync(0);
-              }
-              Err(e) => {
-                log!(ERROR, "error: {:?}", e);
-                sync(3);
-              }
-            }
-          }
-        }
-        Err(e) => {
-          log!(ERROR, "error: {:?}", e);
-          sync(3);
-        }
-      }
-    });
-  });
 }

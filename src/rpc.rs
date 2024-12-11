@@ -7,9 +7,6 @@ use ic_cdk::api::management_canister::http_request::*;
 use rune_indexer_interface::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::str::FromStr;
-
-pub use bitcoincore_rpc_json::*;
 
 lazy_static::lazy_static! {
   static ref ESSENTIAL_HEADERS: std::collections::HashSet<String> = {
@@ -229,40 +226,6 @@ where
     url.to_string(),
     "No result".to_string(),
   )))
-}
-
-pub(crate) async fn get_block_hash(url: &str, height: u32) -> Result<BlockHash> {
-  let r = make_rpc::<String>(url, "getblockhash", serde_json::json!([height]), 1024 * 2).await?;
-  let hash = BlockHash::from_str(&r).map_err(|e| {
-    OrdError::Rpc(RpcError::Decode(
-      "getblockhash".to_string(),
-      url.to_string(),
-      e.to_string(),
-    ))
-  })?;
-  Ok(hash)
-}
-
-pub(crate) async fn get_block_header(url: &str, hash: BlockHash) -> Result<GetBlockHeaderResult> {
-  make_rpc::<GetBlockHeaderResult>(
-    url,
-    "getblockheader",
-    serde_json::json!([format!("{:x}", hash), true]),
-    1024 * 2,
-  )
-  .await
-}
-
-pub(crate) async fn get_best_block_hash(url: &str) -> Result<BlockHash> {
-  let r = make_rpc::<String>(url, "getbestblockhash", serde_json::json!([]), 1024 * 2).await?;
-  let hash = BlockHash::from_str(&r).map_err(|e| {
-    OrdError::Rpc(RpcError::Decode(
-      "getbestblockhash".to_string(),
-      url.to_string(),
-      e.to_string(),
-    ))
-  })?;
-  Ok(hash)
 }
 
 pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {

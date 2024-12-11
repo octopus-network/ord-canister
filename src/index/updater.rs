@@ -1,8 +1,10 @@
 mod rune_updater;
 
 use self::rune_updater::RuneUpdater;
+use crate::ic_log::*;
 use crate::index::reorg::Reorg;
 use crate::*;
+use ic_canister_log::log;
 use rune_indexer_interface::OrdError;
 use std::collections::HashMap;
 
@@ -28,7 +30,12 @@ impl From<Block> for BlockData {
 }
 
 pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
-  Reorg::detect_reorg(&block, height).await?;
+  log!(
+    INFO,
+    "indexing block {:?} with block_hash: {:?}",
+    height,
+    block.header.block_hash()
+  );
   let mut updater = RuneUpdater {
     block_time: block.header.time,
     burned: HashMap::new(),
@@ -44,12 +51,50 @@ pub(crate) async fn index_block(height: u32, block: BlockData) -> Result<()> {
   Ok(())
 }
 
-pub(crate) async fn get_block(height: u32) -> Result<BlockData> {
+pub(crate) async fn get_block(hash: BlockHash) -> Result<BlockData> {
   let url = get_url();
-  let hash = rpc::get_block_hash(&url, height).await?;
   let block = rpc::get_block(&url, hash).await?;
+
+  if block.block_hash() != hash {
+    return Err(OrdError::WrongBlockHash(hash.to_string()));
+  }
+
   block
     .check_merkle_root()
     .then(|| BlockData::from(block))
-    .ok_or(OrdError::BlockVerification(height))
+    .ok_or(OrdError::WrongBlockMerkleRoot(hash.to_string()))
+}
+
+pub fn update_index() {
+  ic_cdk_timers::set_timer_interval(std::time::Duration::from_secs(10), || {
+    ic_cdk::spawn(async move {
+      let (cur_height, _) = crate::highest_block();
+      if let Ok(Some(block_hash)) = crate::btc_canister::get_block_hash(cur_height + 1).await {
+        if let Ok(block) = get_block(block_hash).await {
+          match Reorg::detect_reorg(block.header.prev_blockhash, cur_height + 1).await {
+            Err(OrdError::Recoverable { height, depth }) => {
+              Reorg::handle_reorg(height, depth);
+            }
+            Err(OrdError::Unrecoverable) => {
+              log!(
+                CRITICAL,
+                "unrecoverable reorg detected at height {}",
+                cur_height + 1
+              );
+              return;
+            }
+            _ => {
+              if let Err(e) = index_block(cur_height + 1, block).await {
+                log!(CRITICAL, "failed to index_block: {:?}", e);
+              }
+            }
+          }
+        } else {
+          log!(CRITICAL, "failed to get_block");
+        }
+      } else {
+        log!(CRITICAL, "failed to get_block_hash");
+      }
+    });
+  });
 }

@@ -1,6 +1,7 @@
 use bitcoin::{block::Header, BlockHash};
 use candid::{self, CandidType, Deserialize, Principal};
 use core2::io::Cursor;
+use ic_cdk::api::call::RejectionCode;
 use rune_indexer_interface::OrdError;
 
 lazy_static::lazy_static! {
@@ -32,31 +33,39 @@ pub struct GetBlockHeadersResponse {
   pub block_headers: Vec<Vec<u8>>,
 }
 
-pub async fn get_block_hash(height: u32) -> crate::Result<BlockHash> {
+pub async fn get_block_hash(height: u32) -> crate::Result<Option<BlockHash>> {
   let req = GetBlockHeadersRequest {
     start_height: height,
     end_height: Some(height),
     network: Network::Mainnet,
   };
-  let res: (GetBlockHeadersResponse,) = ic_cdk::call(*BTC, "bitcoin_get_block_headers", (req,))
+
+  match ic_cdk::call::<_, (GetBlockHeadersResponse,)>(*BTC, "bitcoin_get_block_headers", (req,))
     .await
-    .map_err(|_| OrdError::Params("failed to retrieve header from btc_canister".to_string()))?;
-  let header = res
-    .0
-    .block_headers
-    .first()
-    .map(|b| {
-      let mut buffer = Cursor::new(b);
-      <Header as bitcoin::consensus::Decodable>::consensus_decode(&mut buffer)
-    })
-    .ok_or_else(|| OrdError::Params("block not ready".to_string()))?;
-  Ok(
-    header
-      .map_err(|_| {
-        OrdError::Params(
-          "invalid block header from canister because we can't decode it".to_string(),
-        )
-      })?
-      .block_hash(),
-  )
+  {
+    Ok(response) => {
+      let header_bytes = response
+        .0
+        .block_headers
+        .first()
+        .ok_or_else(|| OrdError::Params(format!("failed to get header at height: {}", height)))?;
+
+      let mut buffer = Cursor::new(header_bytes);
+      let header = <Header as bitcoin::consensus::Decodable>::consensus_decode(&mut buffer)
+        .map_err(|_| {
+          OrdError::Params(format!("failed to decode block hash at height: {}", height))
+        })?;
+
+      Ok(Some(header.block_hash()))
+    }
+    Err(err)
+      if err.0 == RejectionCode::CanisterReject && err.1.contains("StartHeightDoesNotExist") =>
+    {
+      Ok(None)
+    }
+    Err(err) => Err(OrdError::Params(format!(
+      "failed to bitcoin_get_block_headers: {:?}",
+      err
+    ))),
+  }
 }

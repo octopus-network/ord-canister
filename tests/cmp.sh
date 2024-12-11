@@ -1,7 +1,7 @@
 #!/bin/bash
 
 qc() { 
-    dfx canister call ord-indexer get_runes_by_utxo --ic "(\"$1\", $2 : nat32)"
+    dfx canister call ord-canister get_runes_by_utxo --ic "(\"$1\", $2 : nat32)"
 }
 
 while IFS=',' read -r c1 c2 c3 c4 c5

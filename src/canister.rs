@@ -138,7 +138,7 @@ pub fn init(url: String) {
   crate::init_storage();
   crate::set_url(url);
   crate::index::init_rune();
-  crate::index::sync(1);
+  crate::index::update_index();
 }
 
 #[pre_upgrade]
@@ -149,7 +149,7 @@ fn pre_upgrade() {
 #[post_upgrade]
 fn post_upgrade() {
   crate::restore();
-  crate::index::sync(1);
+  crate::index::update_index();
 }
 
 ic_cdk::export_candid!();

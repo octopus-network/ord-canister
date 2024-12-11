@@ -1,4 +1,3 @@
-#[cfg(feature = "cmp-header")]
 mod btc_canister;
 mod canister;
 mod ic_log;
