@@ -2,6 +2,8 @@ mod btc_canister;
 mod canister;
 mod ic_log;
 mod index;
+mod memory;
+mod notifier;
 mod rpc;
 
 use self::index::entry::{OutPointValue, TxidValue};
