@@ -2,7 +2,7 @@ use bitcoin::{block::Header, BlockHash};
 use candid::{self, CandidType, Deserialize, Principal};
 use core2::io::Cursor;
 use ic_cdk::api::call::RejectionCode;
-use rune_indexer_interface::OrdError;
+use ord_canister_interface::OrdError;
 
 lazy_static::lazy_static! {
   pub static ref BTC: Principal = Principal::from_text("ghsi2-tqaaa-aaaan-aaaca-cai").unwrap();

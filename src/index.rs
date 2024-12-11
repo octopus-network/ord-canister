@@ -2,7 +2,7 @@ use self::{entry::Entry, event::Event, lot::Lot};
 use super::*;
 use crate::ic_log::*;
 use bitcoin::block::Header;
-use rune_indexer_interface::MintError;
+use ord_canister_interface::MintError;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 

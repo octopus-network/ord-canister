@@ -2,7 +2,7 @@ use crate::index::INFO;
 use crate::Result;
 use bitcoin::block::BlockHash;
 use ic_canister_log::log;
-use rune_indexer_interface::OrdError;
+use ord_canister_interface::OrdError;
 
 const MAX_RECOVERABLE_REORG_DEPTH: u32 = 6;
 

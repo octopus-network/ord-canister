@@ -3,7 +3,7 @@ use crate::{index::entry::Entry, OutPoint, Txid};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query, update};
-use rune_indexer_interface::*;
+use ord_canister_interface::*;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -32,7 +32,7 @@ pub fn get_runes_by_utxo(txid: String, vout: u32) -> Result<Vec<RuneBalance>, Or
 }
 
 #[query]
-pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Vec<OrdRuneBalance>>, OrdError> {
+pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalance>>>, OrdError> {
   if outpoints.len() > 64 {
     return Err(OrdError::Params("Too many outpoints".to_string()));
   }
@@ -45,7 +45,7 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Vec<OrdRuneBalance>>, O
       Ok(o) => o,
       Err(e) => {
         log!(WARNING, "Failed to parse outpoint {}: {}", str_outpoint, e);
-        piles.push(vec![]);
+        piles.push(None);
         continue;
       }
     };
@@ -71,17 +71,12 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Vec<OrdRuneBalance>>, O
               symbol: rune_entry.symbol.map(|c| c.to_string()),
             });
           } else {
-            log!(
-              WARNING,
-              "Rune not found for block {} tx {}",
-              rune_id.block,
-              rune_id.tx
-            );
+            log!(CRITICAL, "Rune not found for outpoint {}", str_outpoint);
           }
         }
-        piles.push(outpoint_balances);
+        piles.push(Some(outpoint_balances));
       }
-      None => (),
+      None => piles.push(None),
     });
   }
 

@@ -4,7 +4,7 @@ use crate::{
 };
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::*;
-use rune_indexer_interface::*;
+use ord_canister_interface::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 

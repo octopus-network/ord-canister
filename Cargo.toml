@@ -35,7 +35,7 @@ hex-literal = "0.4.1"
 lazy_static = "1.4"
 ordinals = { path = "./crates/ordinals" }
 sha2 = "0.10.8"
-rune-indexer-interface = { path = "./interface" }
+ord-canister-interface = { path = "./interface" }
 ic-canisters-http-types = { git = "https://github.com/dfinity/ic", tag = "release-2024-03-06_23-01+p2p" }
 ic-canister-log = { git = "https://github.com/dfinity/ic", tag = "release-2024-01-18_23-01" }
 serde_derive = "1.0"

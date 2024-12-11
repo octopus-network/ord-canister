@@ -3,30 +3,30 @@
 //! # Example
 //!
 //! ```
-//! use rune_indexer_interface::*;
+//! use ord_canister_interface::*;
 //!
 //! let indexer = Principal::from_text("o25oi-jaaaa-aaaal-ajj6a-cai").unwrap();
 //! let (result,): (Result<Vec<RuneBalance>, OrdError>,) = ic_cdk::call(indexer, "get_runes_by_utxo", ("ee8345590d85047c66a0e131153e5202b9bda3990bd07decd9df0a9bb2589348", 0)).await.unwrap();
 //! ```
 
-use candid::CandidType;
+use candid::{CandidType, Deserialize};
 use thiserror::Error;
 
 /// The RuneId is a unique identifier for a RUNE.
-#[derive(Debug, Eq, PartialEq, Copy, Clone, CandidType)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, CandidType, Deserialize)]
 pub struct RuneId {
   pub block: u64,
   pub tx: u32,
 }
 
 /// The RuneId, Balance pair
-#[derive(Copy, Eq, PartialEq, Clone, Debug, CandidType)]
+#[derive(Copy, Eq, PartialEq, Clone, Debug, CandidType, Deserialize)]
 pub struct RuneBalance {
   pub id: RuneId,
   pub balance: u128,
 }
 
-#[derive(CandidType)]
+#[derive(CandidType, Deserialize)]
 pub struct OrdRuneBalance {
   pub id: String,
   pub confirmations: u32,
@@ -35,7 +35,7 @@ pub struct OrdRuneBalance {
   pub symbol: Option<String>,
 }
 
-#[derive(Debug, Eq, PartialEq, Error, CandidType)]
+#[derive(Debug, Eq, PartialEq, Error, CandidType, Deserialize)]
 pub enum OrdError {
   #[error("params: {0}")]
   Params(String),
@@ -59,7 +59,7 @@ pub enum OrdError {
   NotEnoughConfirmations,
 }
 
-#[derive(Debug, Clone, Error, Eq, PartialEq, CandidType)]
+#[derive(Debug, Clone, Error, Eq, PartialEq, CandidType, Deserialize)]
 pub enum RpcError {
   #[error("IO error occured while calling {0} onto {1} due to {2}.")]
   Io(String, String, String),
@@ -69,7 +69,7 @@ pub enum RpcError {
   Endpoint(String, String, String),
 }
 
-#[derive(Debug, Clone, Error, Eq, PartialEq, CandidType)]
+#[derive(Debug, Clone, Error, Eq, PartialEq, CandidType, Deserialize)]
 pub enum MintError {
   #[error("limited to {0} mints")]
   Cap(u128),

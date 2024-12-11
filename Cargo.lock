@@ -1602,8 +1602,8 @@ dependencies = [
  "ic-stable-memory",
  "ic-stable-memory-derive",
  "lazy_static",
+ "ord-canister-interface",
  "ordinals",
- "rune-indexer-interface",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1611,6 +1611,15 @@ dependencies = [
  "syn 1.0.109",
  "thiserror",
  "time",
+]
+
+[[package]]
+name = "ord-canister-interface"
+version = "0.1.0"
+dependencies = [
+ "candid 0.10.10",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -1849,14 +1858,6 @@ name = "regex-syntax"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
-
-[[package]]
-name = "rune-indexer-interface"
-version = "0.1.0"
-dependencies = [
- "candid 0.10.10",
- "thiserror",
-]
 
 [[package]]
 name = "rustc-demangle"

@@ -20,7 +20,7 @@ type OrdRuneBalance = record {
 };
 type Result = variant { Ok : record { nat32; text }; Err : OrdError };
 type Result_1 = variant { Ok : vec RuneBalance; Err : OrdError };
-type Result_2 = variant { Ok : vec vec OrdRuneBalance; Err : OrdError };
+type Result_2 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
 type Result_3 = variant { Ok; Err : text };
 type RpcError = variant {
   Io : record { text; text; text };

@@ -2,7 +2,7 @@ use crate::index::*;
 use candid::CandidType;
 use core2::io::Cursor;
 use ic_stable_memory::{AsFixedSizeBytes, StableType};
-use rune_indexer_interface::OrdError;
+use ord_canister_interface::OrdError;
 
 pub(crate) trait Entry: Sized {
   type Value;
@@ -18,10 +18,10 @@ pub struct RuneBalance {
   pub balance: u128,
 }
 
-impl Into<rune_indexer_interface::RuneBalance> for RuneBalance {
-  fn into(self) -> rune_indexer_interface::RuneBalance {
-    rune_indexer_interface::RuneBalance {
-      id: rune_indexer_interface::RuneId {
+impl Into<ord_canister_interface::RuneBalance> for RuneBalance {
+  fn into(self) -> ord_canister_interface::RuneBalance {
+    ord_canister_interface::RuneBalance {
+      id: ord_canister_interface::RuneId {
         block: self.id.block,
         tx: self.id.tx,
       },

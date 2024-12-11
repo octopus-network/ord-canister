@@ -24,11 +24,11 @@ use ic_stable_memory::{
   SBox,
 };
 pub use index::entry::{RuneBalance, RuneEntry, RuneUpdate};
+use ord_canister_interface::OrdError;
 pub use ordinals::{
   varint, Artifact, Charm, Edict, Epoch, Etching, Height, Pile, Rarity, Rune, RuneId, Runestone,
   Sat, SatPoint, SpacedRune, Terms,
 };
-use rune_indexer_interface::OrdError;
 use std::cell::RefCell;
 
 pub(crate) type Result<T> = std::result::Result<T, OrdError>;
