@@ -40,4 +40,3 @@ ic-canisters-http-types = { git = "https://github.com/dfinity/ic", tag = "releas
 ic-canister-log = { git = "https://github.com/dfinity/ic", tag = "release-2024-01-18_23-01" }
 serde_derive = "1.0"
 time = "0.3"
-ic-stable-structures = "0.6.7"

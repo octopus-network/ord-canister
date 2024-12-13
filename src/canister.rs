@@ -3,6 +3,7 @@ use crate::{index::entry::Entry, OutPoint, Txid};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query, update};
+use ic_stable_memory::SBox;
 use ord_canister_interface::*;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -111,6 +112,24 @@ pub fn set_url(url: String) -> Result<(), String> {
     return Err("Not authorized".to_string());
   }
   crate::set_url(url);
+  Ok(())
+}
+
+#[query]
+pub fn get_subscribers() -> Vec<String> {
+  crate::subscribers(|s| s.iter().map(|s| s.to_string()).collect())
+}
+
+#[update]
+pub fn add_subscriber(canister_id: String) -> Result<(), String> {
+  let caller = ic_cdk::api::caller();
+  if !ic_cdk::api::is_controller(&caller) {
+    return Err("Not authorized".to_string());
+  }
+  let _ = crate::subscribers(|s| {
+    s.push(SBox::new(canister_id.clone()).expect("MemoryOverflow"))
+      .map_err(|e| e.to_string())
+  });
   Ok(())
 }
 

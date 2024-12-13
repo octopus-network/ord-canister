@@ -18,10 +18,10 @@ type OrdRuneBalance = record {
   amount : nat;
   symbol : opt text;
 };
-type Result = variant { Ok : record { nat32; text }; Err : OrdError };
-type Result_1 = variant { Ok : vec RuneBalance; Err : OrdError };
-type Result_2 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
-type Result_3 = variant { Ok; Err : text };
+type Result = variant { Ok; Err : text };
+type Result_1 = variant { Ok : record { nat32; text }; Err : OrdError };
+type Result_2 = variant { Ok : vec RuneBalance; Err : OrdError };
+type Result_3 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
 type RpcError = variant {
   Io : record { text; text; text };
   Endpoint : record { text; text; text };
@@ -30,8 +30,10 @@ type RpcError = variant {
 type RuneBalance = record { id : RuneId; balance : nat };
 type RuneId = record { tx : nat32; block : nat64 };
 service : (text) -> {
-  get_height : () -> (Result) query;
-  get_runes_by_utxo : (text, nat32) -> (Result_1) query;
-  query_runes : (vec text) -> (Result_2) query;
-  set_url : (text) -> (Result_3);
+  add_subscriber : (text) -> (Result);
+  get_height : () -> (Result_1) query;
+  get_runes_by_utxo : (text, nat32) -> (Result_2) query;
+  get_subscribers : () -> (vec text) query;
+  query_runes : (vec text) -> (Result_3) query;
+  set_url : (text) -> (Result);
 }

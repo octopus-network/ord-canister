@@ -1203,15 +1203,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ic-stable-structures"
-version = "0.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b492c5a16455ae78623eaa12ead96dda6c69a83c535b1b00789f19b381c8a24c"
-dependencies = [
- "ic_principal",
-]
-
-[[package]]
 name = "ic0"
 version = "0.18.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1610,7 +1601,6 @@ dependencies = [
  "ic-cdk-timers",
  "ic-stable-memory",
  "ic-stable-memory-derive",
- "ic-stable-structures",
  "lazy_static",
  "ord-canister-interface",
  "ordinals",

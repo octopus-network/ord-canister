@@ -96,7 +96,7 @@ pub fn update_index() {
                 if let Err(e) = index_block(cur_height + 1, block).await {
                   log!(CRITICAL, "failed to index_block: {:?}", e);
                 } else {
-                  let subscribers = crate::memory::get_subscribers();
+                  let subscribers = crate::canister::get_subscribers();
                   for subscriber in subscribers
                     .iter()
                     .filter_map(|s| Principal::from_text(s).ok())
