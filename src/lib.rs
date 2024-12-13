@@ -2,6 +2,7 @@ mod btc_canister;
 mod canister;
 mod ic_log;
 mod index;
+mod notifier;
 mod rpc;
 
 use self::index::entry::{OutPointValue, TxidValue};
@@ -45,6 +46,8 @@ thread_local! {
   static OUTPOINT_TO_HEIGHT: RefCell<Option<SHashMap<OutPointValue, u32>>> = RefCell::new(None);
   static HEIGHT_TO_RUNE_UPDATES: RefCell<Option<SHashMap<u32, SVec<RuneUpdate>>>> = RefCell::new(None);
   static HEIGHT_TO_RUNE_IDS: RefCell<Option<SHashMap<u32, SVec<RuneId>>>> = RefCell::new(None);
+
+  static SUBSCRIBERS: RefCell<Option<SVec<SBox<String>>>> = RefCell::new(None);
 }
 
 pub const FIRST_HEIGHT: u32 = 839999;
@@ -99,6 +102,7 @@ pub(crate) fn init_storage() {
   OUTPOINT_TO_HEIGHT.with_borrow_mut(|h| h.replace(SHashMap::new()));
   HEIGHT_TO_RUNE_UPDATES.with_borrow_mut(|h| h.replace(SHashMap::new()));
   HEIGHT_TO_RUNE_IDS.with_borrow_mut(|h| h.replace(SHashMap::new()));
+  SUBSCRIBERS.with_borrow_mut(|s| s.replace(SVec::new()));
 }
 
 pub(crate) fn persistence() {
@@ -131,6 +135,8 @@ pub(crate) fn persistence() {
   let height_to_rune_ids: SHashMap<u32, SVec<RuneId>> =
     HEIGHT_TO_RUNE_IDS.with(|h| h.borrow_mut().take().unwrap());
   let boxed_height_to_rune_ids = SBox::new(height_to_rune_ids).expect("MemoryOverflow");
+  let subscribers: SVec<SBox<String>> = SUBSCRIBERS.with(|s| s.borrow_mut().take().unwrap());
+  let boxed_subscribers = SBox::new(subscribers).expect("MemoryOverflow");
   ic_stable_memory::store_custom_data(0, boxed_rpc_url);
   ic_stable_memory::store_custom_data(1, boxed_outpoint_to_balances);
   ic_stable_memory::store_custom_data(2, boxed_rune_id_to_rune_entry);
@@ -141,6 +147,7 @@ pub(crate) fn persistence() {
   ic_stable_memory::store_custom_data(7, boxed_outpoint_to_height);
   ic_stable_memory::store_custom_data(8, boxed_height_to_rune_updates);
   ic_stable_memory::store_custom_data(9, boxed_height_to_rune_ids);
+  ic_stable_memory::store_custom_data(10, boxed_subscribers);
   ic_stable_memory::stable_memory_pre_upgrade().expect("MemoryOverflow");
 }
 
@@ -165,6 +172,8 @@ pub(crate) fn restore() {
     ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<RuneUpdate>>>(8).unwrap();
   let height_to_rune_ids =
     ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<RuneId>>>(9).unwrap();
+  let subscribers =
+    ic_stable_memory::retrieve_custom_data::<SVec<SBox<String>>>(10).unwrap();
   RPC_URL.with_borrow_mut(|r| r.replace(rpc_url.into_inner()));
   OUTPOINT_TO_RUNE_BALANCES.with_borrow_mut(|b| b.replace(outpoint_to_rune_balances.into_inner()));
   RUNE_ID_TO_RUNE_ENTRY.with_borrow_mut(|r| r.replace(rune_id_to_rune_entry.into_inner()));
@@ -175,6 +184,7 @@ pub(crate) fn restore() {
   OUTPOINT_TO_HEIGHT.with_borrow_mut(|h| h.replace(outpoint_to_height.into_inner()));
   HEIGHT_TO_RUNE_UPDATES.with_borrow_mut(|h| h.replace(height_to_rune_updates.into_inner()));
   HEIGHT_TO_RUNE_IDS.with_borrow_mut(|h| h.replace(height_to_rune_ids.into_inner()));
+  SUBSCRIBERS.with_borrow_mut(|s| s.replace(subscribers.into_inner()));
 }
 
 pub(crate) fn get_url() -> String {
@@ -254,4 +264,11 @@ where
   F: Fn(&mut SHashMap<u32, SVec<RuneId>>) -> R,
 {
   crate::HEIGHT_TO_RUNE_IDS.with_borrow_mut(|h| f(h.as_mut().expect("not initialized")))
+}
+
+pub(crate) fn subscribers<F, R>(f: F) -> R
+where
+  F: Fn(&mut SVec<SBox<String>>) -> R,
+{
+  crate::SUBSCRIBERS.with_borrow_mut(|s| f(s.as_mut().expect("not initialized")))
 }

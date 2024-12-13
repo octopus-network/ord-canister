@@ -4,6 +4,7 @@ use self::rune_updater::RuneUpdater;
 use crate::ic_log::*;
 use crate::index::reorg::Reorg;
 use crate::*;
+use candid::Principal;
 use ic_canister_log::log;
 use ord_canister_interface::OrdError;
 use std::collections::HashMap;
@@ -86,9 +87,35 @@ pub fn update_index() {
                 return;
               }
               _ => {
+                let block_hash = block.header.block_hash().to_string();
+                let txids: Vec<String> = block
+                  .txdata
+                  .iter()
+                  .map(|(_, txid)| txid.to_string())
+                  .collect();
                 if let Err(e) = index_block(cur_height + 1, block).await {
                   log!(CRITICAL, "failed to index_block: {:?}", e);
                 } else {
+                  let subscribers = crate::canister::get_subscribers();
+                  for subscriber in subscribers
+                    .iter()
+                    .filter_map(|s| Principal::from_text(s).ok())
+                  {
+                    let _ = crate::notifier::notify_new_block(
+                      subscriber,
+                      cur_height + 1,
+                      block_hash.clone(),
+                      txids.clone(),
+                    )
+                    .await;
+                    log!(
+                      INFO,
+                      "notified subscriber: {:?} with block_height: {:?} block_hash: {:?}",
+                      subscriber,
+                      cur_height + 1,
+                      block_hash
+                    );
+                  }
                   update_index();
                 }
               }
