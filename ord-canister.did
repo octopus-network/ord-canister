@@ -11,6 +11,7 @@ type OrdError = variant {
   Recoverable : record { height : nat32; depth : nat32 };
   WrongBlockMerkleRoot : text;
 };
+type OrdEtching = record { confirmations : nat32; rune_id : text };
 type OrdRuneBalance = record {
   id : text;
   confirmations : nat32;
@@ -19,9 +20,10 @@ type OrdRuneBalance = record {
   symbol : opt text;
 };
 type Result = variant { Ok; Err : text };
-type Result_1 = variant { Ok : record { nat32; text }; Err : OrdError };
-type Result_2 = variant { Ok : vec RuneBalance; Err : OrdError };
-type Result_3 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
+type Result_1 = variant { Ok : opt OrdEtching; Err : OrdError };
+type Result_2 = variant { Ok : record { nat32; text }; Err : OrdError };
+type Result_3 = variant { Ok : vec RuneBalance; Err : OrdError };
+type Result_4 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
 type RpcError = variant {
   Io : record { text; text; text };
   Endpoint : record { text; text; text };
@@ -31,9 +33,10 @@ type RuneBalance = record { id : RuneId; balance : nat };
 type RuneId = record { tx : nat32; block : nat64 };
 service : (text) -> {
   add_subscriber : (text) -> (Result);
-  get_height : () -> (Result_1) query;
-  get_runes_by_utxo : (text, nat32) -> (Result_2) query;
+  get_etching : (text) -> (Result_1) query;
+  get_height : () -> (Result_2) query;
+  get_runes_by_utxo : (text, nat32) -> (Result_3) query;
   get_subscribers : () -> (vec text) query;
-  query_runes : (vec text) -> (Result_3) query;
+  query_runes : (vec text) -> (Result_4) query;
   set_url : (text) -> (Result);
 }

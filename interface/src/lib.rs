@@ -35,6 +35,12 @@ pub struct OrdRuneBalance {
   pub symbol: Option<String>,
 }
 
+#[derive(CandidType, Deserialize)]
+pub struct OrdEtching {
+  pub rune_id: String,
+  pub confirmations: u32,
+}
+
 #[derive(Debug, Eq, PartialEq, Error, CandidType, Deserialize)]
 pub enum OrdError {
   #[error("params: {0}")]

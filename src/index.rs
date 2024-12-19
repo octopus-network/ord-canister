@@ -63,17 +63,12 @@ pub(crate) fn init_rune() {
   transaction_id_to_rune(|t| t.insert(Txid::store(etching), rune.store())).expect("MemoryOverflow");
 }
 
-#[allow(dead_code)]
-pub(crate) fn get_etching(txid: Txid) -> Result<Option<SpacedRune>> {
-  let Some(rune) = crate::transaction_id_to_rune(|t| t.get(&Txid::store(txid)).map(|r| *r)) else {
-    return Ok(None);
-  };
-
-  let id = crate::rune_to_rune_id(|r| *r.get(&rune).unwrap());
-
-  let entry = crate::rune_id_to_rune_entry(|r| *r.get(&id).unwrap());
-
-  Ok(Some(entry.spaced_rune))
+pub(crate) fn get_etching(txid: Txid) -> Result<Option<(RuneId, RuneEntry)>> {
+  Ok(
+    crate::transaction_id_to_rune(|t| t.get(&Txid::store(txid)).map(|r| *r))
+      .and_then(|rune| crate::rune_to_rune_id(|r| r.get(&rune).map(|id| *id)))
+      .and_then(|id| crate::rune_id_to_rune_entry(|r| r.get(&id).map(|e| (id, *e)))),
+  )
 }
 
 #[allow(dead_code)]

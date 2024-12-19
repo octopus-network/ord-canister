@@ -172,8 +172,7 @@ pub(crate) fn restore() {
     ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<RuneUpdate>>>(8).unwrap();
   let height_to_rune_ids =
     ic_stable_memory::retrieve_custom_data::<SHashMap<u32, SVec<RuneId>>>(9).unwrap();
-  let subscribers =
-    ic_stable_memory::retrieve_custom_data::<SVec<SBox<String>>>(10).unwrap();
+  let subscribers = ic_stable_memory::retrieve_custom_data::<SVec<SBox<String>>>(10).unwrap();
   RPC_URL.with_borrow_mut(|r| r.replace(rpc_url.into_inner()));
   OUTPOINT_TO_RUNE_BALANCES.with_borrow_mut(|b| b.replace(outpoint_to_rune_balances.into_inner()));
   RUNE_ID_TO_RUNE_ENTRY.with_borrow_mut(|r| r.replace(rune_id_to_rune_entry.into_inner()));

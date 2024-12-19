@@ -271,7 +271,7 @@ impl RuneUpdater {
     id: RuneId,
     rune: Rune,
   ) -> Result<()> {
-    // crate::rune_to_rune_id(|r| r.insert(rune.store(), id)).expect("MemoryOverflow");
+    crate::rune_to_rune_id(|r| r.insert(rune.store(), id)).expect("MemoryOverflow");
     crate::transaction_id_to_rune(|t| t.insert(txid.store(), rune.0)).expect("MemoryOverflow");
 
     let entry = match artifact {

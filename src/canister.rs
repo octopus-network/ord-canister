@@ -85,6 +85,17 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalan
 }
 
 #[query]
+pub fn get_etching(txid: String) -> Result<Option<OrdEtching>, OrdError> {
+  let txid = Txid::from_str(&txid).map_err(|e| OrdError::Params(e.to_string()))?;
+  let etching = crate::index::get_etching(txid)?;
+  let (cur_height, _) = crate::highest_block();
+  Ok(etching.map(|(id, entry)| OrdEtching {
+    rune_id: id.to_string(),
+    confirmations: cur_height - entry.block as u32 + 1,
+  }))
+}
+
+#[query]
 pub fn get_height() -> Result<(u32, String), OrdError> {
   let (height, hash) = crate::highest_block();
   Ok((height, hash.to_string()))
