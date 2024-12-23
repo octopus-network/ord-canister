@@ -1,4 +1,4 @@
-mod btc_canister;
+mod bitcoin_api;
 mod canister;
 mod ic_log;
 mod index;

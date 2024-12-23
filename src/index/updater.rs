@@ -70,7 +70,7 @@ pub fn update_index() {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(10), || {
     ic_cdk::spawn(async move {
       let (cur_height, _) = crate::highest_block();
-      match crate::btc_canister::get_block_hash(cur_height + 1).await {
+      match crate::bitcoin_api::get_block_hash(cur_height + 1).await {
         Ok(Some(block_hash)) => {
           if let Ok(block) = get_block(block_hash).await {
             match Reorg::detect_reorg(block.header.prev_blockhash, cur_height + 1).await {

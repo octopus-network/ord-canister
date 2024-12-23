@@ -18,11 +18,10 @@ impl Reorg {
             crate::block_hash(height.checked_sub(depth).expect("height overflow"))
               .ok_or(OrdError::Unrecoverable)?;
 
-          let bitcoin_canister_block_hash = crate::btc_canister::get_block_hash(
-            height.checked_sub(depth).expect("height overflow"),
-          )
-          .await?
-          .ok_or(OrdError::Unrecoverable)?;
+          let bitcoin_canister_block_hash =
+            crate::bitcoin_api::get_block_hash(height.checked_sub(depth).expect("height overflow"))
+              .await?
+              .ok_or(OrdError::Unrecoverable)?;
 
           if index_block_hash == bitcoin_canister_block_hash {
             return Err(OrdError::Recoverable { height, depth });
