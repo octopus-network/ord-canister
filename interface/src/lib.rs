@@ -41,6 +41,31 @@ pub struct OrdEtching {
   pub confirmations: u32,
 }
 
+#[derive(CandidType, Deserialize)]
+pub struct OrdTerms {
+  pub amount: Option<u128>,
+  pub cap: Option<u128>,
+  pub height: (Option<u64>, Option<u64>),
+  pub offset: (Option<u64>, Option<u64>),
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct OrdRuneEntry {
+  pub confirmations: u32,
+  pub block: u64,
+  pub burned: u128,
+  pub divisibility: u8,
+  pub etching: String,
+  pub mints: u128,
+  pub number: u64,
+  pub premine: u128,
+  pub spaced_rune: String,
+  pub symbol: Option<String>,
+  pub terms: Option<OrdTerms>,
+  pub timestamp: u64,
+  pub turbo: bool,
+}
+
 #[derive(Debug, Eq, PartialEq, Error, CandidType, Deserialize)]
 pub enum OrdError {
   #[error("params: {0}")]
@@ -63,6 +88,8 @@ pub enum OrdError {
   OutPointNotFound,
   #[error("not enough confirmations")]
   NotEnoughConfirmations,
+  #[error("rune not found")]
+  RuneNotFound,
 }
 
 #[derive(Debug, Clone, Error, Eq, PartialEq, CandidType, Deserialize)]

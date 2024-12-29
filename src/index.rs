@@ -71,6 +71,10 @@ pub(crate) fn get_etching(txid: Txid) -> Result<Option<(RuneId, RuneEntry)>> {
   )
 }
 
+pub(crate) fn get_rune_entry_by_rune_id(rune_id: RuneId) -> Option<RuneEntry> {
+  crate::rune_id_to_rune_entry(|r| r.get(&rune_id).map(|e| *e))
+}
+
 #[allow(dead_code)]
 pub(crate) fn get_rune_balances_for_output(
   outpoint: OutPoint,

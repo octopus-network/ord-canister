@@ -96,6 +96,35 @@ pub fn get_etching(txid: String) -> Result<Option<OrdEtching>, OrdError> {
 }
 
 #[query]
+pub fn get_rune_entry_by_rune_id(rune_id: String) -> Result<OrdRuneEntry, OrdError> {
+  let rune_id =
+    ordinals::RuneId::from_str(&rune_id).map_err(|e| OrdError::Params(e.to_string()))?;
+  let rune_entry =
+    crate::index::get_rune_entry_by_rune_id(rune_id).ok_or(OrdError::RuneNotFound)?;
+  let (cur_height, _) = crate::highest_block();
+  Ok(OrdRuneEntry {
+    confirmations: cur_height - rune_entry.block as u32 + 1,
+    block: rune_entry.block,
+    burned: rune_entry.burned,
+    divisibility: rune_entry.divisibility,
+    etching: rune_entry.etching.to_string(),
+    mints: rune_entry.mints,
+    number: 0,
+    premine: rune_entry.premine,
+    spaced_rune: rune_entry.spaced_rune.to_string(),
+    symbol: rune_entry.symbol.map(|c| c.to_string()),
+    terms: rune_entry.terms.map(|t| OrdTerms {
+      amount: t.amount,
+      cap: t.cap,
+      height: t.height,
+      offset: t.offset,
+    }),
+    timestamp: rune_entry.timestamp,
+    turbo: rune_entry.turbo,
+  })
+}
+
+#[query]
 pub fn get_height() -> Result<(u32, String), OrdError> {
   let (height, hash) = crate::highest_block();
   Ok((height, hash.to_string()))
