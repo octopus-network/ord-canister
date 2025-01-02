@@ -1,9 +1,12 @@
-use std::{
-  cmp::{PartialEq, PartialOrd},
-  ops::{Add, AddAssign, Div, Rem, Sub, SubAssign},
+use {
+  super::*,
+  std::{
+    cmp::{PartialEq, PartialOrd},
+    ops::{Add, AddAssign, Div, Rem, Sub, SubAssign},
+  },
 };
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Default)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct Lot(pub u128);
 
 impl Lot {

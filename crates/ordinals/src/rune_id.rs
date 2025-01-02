@@ -1,5 +1,4 @@
 use super::*;
-use candid::CandidType;
 
 #[derive(
   Debug,
@@ -13,7 +12,6 @@ use candid::CandidType;
   Default,
   DeserializeFromStr,
   SerializeDisplay,
-  CandidType,
 )]
 pub struct RuneId {
   pub block: u64,

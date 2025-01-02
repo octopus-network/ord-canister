@@ -14,10 +14,12 @@ pub enum Charm {
   Uncommon = 9,
   Vindicated = 10,
   Mythic = 11,
+  Burned = 12,
+  Palindrome = 13,
 }
 
 impl Charm {
-  pub const ALL: [Self; 12] = [
+  pub const ALL: [Self; 14] = [
     Self::Coin,
     Self::Uncommon,
     Self::Rare,
@@ -25,14 +27,16 @@ impl Charm {
     Self::Legendary,
     Self::Mythic,
     Self::Nineball,
+    Self::Palindrome,
     Self::Reinscription,
     Self::Cursed,
     Self::Unbound,
     Self::Lost,
     Self::Vindicated,
+    Self::Burned,
   ];
 
-  fn flag(self) -> u16 {
+  pub fn flag(self) -> u16 {
     1 << self as u16
   }
 
@@ -50,18 +54,20 @@ impl Charm {
 
   pub fn icon(self) -> &'static str {
     match self {
+      Self::Burned => "🔥",
       Self::Coin => "🪙",
       Self::Cursed => "👹",
       Self::Epic => "🪻",
       Self::Legendary => "🌝",
       Self::Lost => "🤔",
       Self::Mythic => "🎃",
-      Self::Nineball => "9️⃣",
+      Self::Nineball => "\u{39}\u{fe0f}\u{20e3}",
+      Self::Palindrome => "🦋",
       Self::Rare => "🧿",
       Self::Reinscription => "♻️",
       Self::Unbound => "🔓",
       Self::Uncommon => "🌱",
-      Self::Vindicated => "❤️‍🔥",
+      Self::Vindicated => "\u{2764}\u{fe0f}\u{200d}\u{1f525}",
     }
   }
 
@@ -79,6 +85,7 @@ impl Display for Charm {
       f,
       "{}",
       match self {
+        Self::Burned => "burned",
         Self::Coin => "coin",
         Self::Cursed => "cursed",
         Self::Epic => "epic",
@@ -86,6 +93,7 @@ impl Display for Charm {
         Self::Lost => "lost",
         Self::Mythic => "mythic",
         Self::Nineball => "nineball",
+        Self::Palindrome => "palindrome",
         Self::Rare => "rare",
         Self::Reinscription => "reinscription",
         Self::Unbound => "unbound",
@@ -101,6 +109,7 @@ impl FromStr for Charm {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     Ok(match s {
+      "burned" => Self::Burned,
       "coin" => Self::Coin,
       "cursed" => Self::Cursed,
       "epic" => Self::Epic,
@@ -108,6 +117,7 @@ impl FromStr for Charm {
       "lost" => Self::Lost,
       "mythic" => Self::Mythic,
       "nineball" => Self::Nineball,
+      "palindrome" => Self::Palindrome,
       "rare" => Self::Rare,
       "reinscription" => Self::Reinscription,
       "unbound" => Self::Unbound,
@@ -143,5 +153,12 @@ mod tests {
     assert!(Charm::Coin.is_set(flags));
     let flags = Charm::Coin.unset(flags);
     assert!(!Charm::Coin.is_set(flags));
+  }
+
+  #[test]
+  fn from_str() {
+    for charm in Charm::ALL {
+      assert_eq!(charm.to_string().parse::<Charm>().unwrap(), charm);
+    }
   }
 }

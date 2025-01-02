@@ -35,7 +35,7 @@ impl FromStr for SpacedRune {
       }
     }
 
-    if 32 - spacers.leading_zeros() >= <usize as TryInto<u32>>::try_into(rune.len()).unwrap() {
+    if 32 - spacers.leading_zeros() >= rune.len().try_into().unwrap() {
       return Err(Error::TrailingSpacer);
     }
 
