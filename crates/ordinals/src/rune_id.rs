@@ -1,6 +1,5 @@
 use super::*;
 use candid::CandidType;
-use ic_stable_memory::{AsFixedSizeBytes, StableType};
 
 #[derive(
   Debug,
@@ -20,29 +19,6 @@ pub struct RuneId {
   pub block: u64,
   pub tx: u32,
 }
-
-impl AsFixedSizeBytes for RuneId {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 12;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    let mut offset = 0;
-    self.block.as_fixed_size_bytes(&mut buf[offset..offset + 8]);
-    offset += 8;
-    self.tx.as_fixed_size_bytes(&mut buf[offset..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut offset = 0;
-    let block = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
-    offset += 8;
-    let tx = u32::from_fixed_size_bytes(&buf[offset..]);
-    Self { block, tx }
-  }
-}
-
-impl StableType for RuneId {}
 
 impl RuneId {
   pub fn new(block: u64, tx: u32) -> Option<RuneId> {

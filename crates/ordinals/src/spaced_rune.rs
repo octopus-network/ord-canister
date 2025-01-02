@@ -1,5 +1,4 @@
 use super::*;
-use ic_stable_memory::{AsFixedSizeBytes, StableType};
 
 #[derive(
   Copy, Clone, Debug, PartialEq, Ord, PartialOrd, Eq, Default, DeserializeFromStr, SerializeDisplay,
@@ -8,25 +7,6 @@ pub struct SpacedRune {
   pub rune: Rune,
   pub spacers: u32,
 }
-
-impl AsFixedSizeBytes for SpacedRune {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 20;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    self.rune.as_fixed_size_bytes(&mut buf[..16]);
-    self.spacers.as_fixed_size_bytes(&mut buf[16..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let rune = Rune::from_fixed_size_bytes(&buf[..16]);
-    let spacers = u32::from_fixed_size_bytes(&buf[16..]);
-    Self { rune, spacers }
-  }
-}
-
-impl StableType for SpacedRune {}
 
 impl SpacedRune {
   pub fn new(rune: Rune, spacers: u32) -> Self {

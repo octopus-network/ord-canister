@@ -1,7 +1,6 @@
 use crate::index::*;
 use candid::CandidType;
 use core2::io::Cursor;
-use ic_stable_memory::{AsFixedSizeBytes, StableType};
 use ord_canister_interface::OrdError;
 
 pub(crate) trait Entry: Sized {
@@ -30,30 +29,6 @@ impl Into<ord_canister_interface::RuneBalance> for RuneBalance {
   }
 }
 
-impl AsFixedSizeBytes for RuneBalance {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 28;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    let mut offset = 0;
-    self
-      .id
-      .as_fixed_size_bytes(&mut buf[offset..offset + RuneId::SIZE]);
-    offset += RuneId::SIZE;
-    self.balance.as_fixed_size_bytes(&mut buf[offset..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut offset = 0;
-    let id = RuneId::from_fixed_size_bytes(&buf[offset..offset + RuneId::SIZE]);
-    offset += RuneId::SIZE;
-    let balance = u128::from_fixed_size_bytes(&buf[offset..]);
-    Self { id, balance }
-  }
-}
-
-impl StableType for RuneBalance {}
 
 #[derive(Debug, Copy, Clone)]
 pub struct RuneUpdate {
@@ -61,37 +36,6 @@ pub struct RuneUpdate {
   pub burned: u128,
   pub mints: u128,
 }
-
-impl AsFixedSizeBytes for RuneUpdate {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = RuneId::SIZE + 16 + 16;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    let mut offset = 0;
-    self
-      .id
-      .as_fixed_size_bytes(&mut buf[offset..offset + RuneId::SIZE]);
-    offset += RuneId::SIZE;
-    self
-      .burned
-      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
-    offset += 16;
-    self.mints.as_fixed_size_bytes(&mut buf[offset..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut offset = 0;
-    let id = RuneId::from_fixed_size_bytes(&buf[offset..offset + RuneId::SIZE]);
-    offset += RuneId::SIZE;
-    let burned = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
-    offset += 16;
-    let mints = u128::from_fixed_size_bytes(&buf[offset..]);
-    Self { id, burned, mints }
-  }
-}
-
-impl StableType for RuneUpdate {}
 
 pub(crate) type HeaderValue = [u8; 80];
 
@@ -140,101 +84,6 @@ pub struct RuneEntry {
   pub timestamp: u64,
   pub turbo: bool,
 }
-
-impl AsFixedSizeBytes for RuneEntry {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 8 + 16 + 1 + 32 + 16 + 16 + SpacedRune::SIZE + 5 + Terms::SIZE + 1 + 8 + 1;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    let mut offset = 0;
-    self.block.as_fixed_size_bytes(&mut buf[offset..offset + 8]);
-    offset += 8;
-    self
-      .burned
-      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
-    offset += 16;
-    self
-      .divisibility
-      .as_fixed_size_bytes(&mut buf[offset..offset + 1]);
-    offset += 1;
-    self
-      .etching
-      .store()
-      .as_fixed_size_bytes(&mut buf[offset..offset + 32]);
-    offset += 32;
-    self
-      .mints
-      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
-    offset += 16;
-    // self.number.as_fixed_size_bytes(&mut buf[offset..]);
-    // offset += 8;
-    self
-      .premine
-      .as_fixed_size_bytes(&mut buf[offset..offset + 16]);
-    offset += 16;
-    self
-      .spaced_rune
-      .as_fixed_size_bytes(&mut buf[offset..offset + SpacedRune::SIZE]);
-    offset += SpacedRune::SIZE;
-    self
-      .symbol
-      .as_fixed_size_bytes(&mut buf[offset..offset + 5]);
-    offset += 5;
-    self
-      .terms
-      .as_fixed_size_bytes(&mut buf[offset..offset + Terms::SIZE + 1]);
-    offset += Terms::SIZE + 1;
-    self
-      .timestamp
-      .as_fixed_size_bytes(&mut buf[offset..offset + 8]);
-    offset += 8;
-    self.turbo.as_fixed_size_bytes(&mut buf[offset..]);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut offset = 0;
-    let block = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
-    offset += 8;
-    let burned = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
-    offset += 16;
-    let divisibility = u8::from_fixed_size_bytes(&buf[offset..offset + 1]);
-    offset += 1;
-    let etching = TxidValue::from_fixed_size_bytes(&buf[offset..offset + 32]);
-    offset += 32;
-    let mints = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
-    offset += 16;
-    // let number = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
-    // offset += 8;
-    let premine = u128::from_fixed_size_bytes(&buf[offset..offset + 16]);
-    offset += 16;
-    let spaced_rune = SpacedRune::from_fixed_size_bytes(&buf[offset..offset + SpacedRune::SIZE]);
-    offset += SpacedRune::SIZE;
-    let symbol = Option::<char>::from_fixed_size_bytes(&buf[offset..offset + 5]);
-    offset += 5;
-    let terms = Option::<Terms>::from_fixed_size_bytes(&buf[offset..offset + Terms::SIZE + 1]);
-    offset += Terms::SIZE + 1;
-    let timestamp = u64::from_fixed_size_bytes(&buf[offset..offset + 8]);
-    offset += 8;
-    let turbo = bool::from_fixed_size_bytes(&buf[offset..]);
-    Self {
-      block,
-      burned,
-      divisibility,
-      etching: Txid::load(etching),
-      mints,
-      // number,
-      premine,
-      spaced_rune,
-      symbol,
-      terms,
-      timestamp,
-      turbo,
-    }
-  }
-}
-
-impl StableType for RuneEntry {}
 
 impl RuneEntry {
   pub fn mintable(&self, height: u64) -> Result<u128> {
@@ -485,24 +334,6 @@ impl Entry for OutPoint {
   }
 }
 
-impl AsFixedSizeBytes for OutPointValue {
-  type Buf = [u8; 36];
-
-  const SIZE: usize = 36;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    buf.copy_from_slice(&self.0);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut value = [0; 36];
-    value.copy_from_slice(buf);
-    Self(value)
-  }
-}
-
-impl StableType for OutPointValue {}
-
 // pub(crate) type TxOutValue = (
 //   u64,     // value
 //   Vec<u8>, // script_pubkey
@@ -580,21 +411,3 @@ impl Entry for Txid {
     TxidValue(Txid::to_byte_array(self))
   }
 }
-
-impl AsFixedSizeBytes for TxidValue {
-  type Buf = [u8; 32];
-
-  const SIZE: usize = 32;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    buf.copy_from_slice(&self.0);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    let mut value = [0; 32];
-    value.copy_from_slice(buf);
-    Self(value)
-  }
-}
-
-impl StableType for TxidValue {}

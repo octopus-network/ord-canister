@@ -1,26 +1,9 @@
 use super::*;
-use ic_stable_memory::{AsFixedSizeBytes, StableType};
 
 #[derive(
   Default, Debug, PartialEq, Copy, Clone, PartialOrd, Ord, Eq, DeserializeFromStr, SerializeDisplay,
 )]
 pub struct Rune(pub u128);
-
-impl AsFixedSizeBytes for Rune {
-  type Buf = [u8; Self::SIZE];
-
-  const SIZE: usize = 16;
-
-  fn as_fixed_size_bytes(&self, buf: &mut [u8]) {
-    self.0.as_fixed_size_bytes(buf);
-  }
-
-  fn from_fixed_size_bytes(buf: &[u8]) -> Self {
-    Self(u128::from_fixed_size_bytes(buf))
-  }
-}
-
-impl StableType for Rune {}
 
 impl Rune {
   const RESERVED: u128 = 6402364363415443603228541259936211926;

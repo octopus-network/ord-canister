@@ -11,28 +11,6 @@ use std::str::FromStr;
 pub const REQUIRED_CONFIRMATIONS: u32 = 4;
 
 #[query]
-pub fn get_runes_by_utxo(txid: String, vout: u32) -> Result<Vec<RuneBalance>, OrdError> {
-  let k = OutPoint::store(OutPoint {
-    txid: Txid::from_str(&txid).map_err(|e| OrdError::Params(e.to_string()))?,
-    vout,
-  });
-  let (cur_height, _) = crate::highest_block();
-  let height =
-    crate::outpoint_to_height(|o| o.get(&k).map(|h| *h)).ok_or(OrdError::OutPointNotFound)?;
-
-  if cur_height < height || cur_height - height < REQUIRED_CONFIRMATIONS - 1 {
-    return Err(OrdError::NotEnoughConfirmations);
-  }
-
-  let v = crate::outpoint_to_rune_balances(|b| {
-    b.get(&k)
-      .map(|v| v.deref().iter().map(|i| (*i).into()).collect())
-  })
-  .unwrap_or_default();
-  Ok(v)
-}
-
-#[query]
 pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalance>>>, OrdError> {
   if outpoints.len() > 64 {
     return Err(OrdError::Params("Too many outpoints".to_string()));
@@ -189,7 +167,6 @@ fn http_request(
 
 #[init]
 pub fn init(url: String) {
-  crate::init_storage();
   crate::set_url(url);
   crate::index::init_rune();
   crate::index::update_index();
@@ -197,12 +174,10 @@ pub fn init(url: String) {
 
 #[pre_upgrade]
 fn pre_upgrade() {
-  crate::persistence();
 }
 
 #[post_upgrade]
 fn post_upgrade() {
-  crate::restore();
   crate::index::update_index();
 }
 

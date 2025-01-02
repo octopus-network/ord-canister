@@ -60,7 +60,7 @@ pub fn do_reply(req: HttpRequest) -> HttpResponse {
             .build()
         }
       },
-      None => 1000,
+      None => 5000,
     };
 
     let offset = match req.raw_query_param("offset") {
