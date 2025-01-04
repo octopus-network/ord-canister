@@ -1,23 +1,19 @@
 use super::*;
 
-pub(super) struct RuneUpdater<'a, 'tx, 'client> {
+pub(super) struct RuneUpdater<'a, 'tx> {
   pub(super) block_time: u32,
   pub(super) burned: HashMap<RuneId, Lot>,
-  pub(super) client: &'client Client,
-  pub(super) event_sender: Option<&'a mpsc::Sender<Event>>,
   pub(super) height: u32,
   pub(super) id_to_entry: &'a mut Table<'tx, RuneIdValue, RuneEntryValue>,
-  pub(super) inscription_id_to_sequence_number: &'a Table<'tx, InscriptionIdValue, u32>,
   pub(super) minimum: Rune,
   pub(super) outpoint_to_balances: &'a mut Table<'tx, &'static OutPointValue, &'static [u8]>,
   pub(super) rune_to_id: &'a mut Table<'tx, u128, RuneIdValue>,
   pub(super) runes: u64,
-  pub(super) sequence_number_to_rune_id: &'a mut Table<'tx, u32, RuneIdValue>,
   pub(super) statistic_to_count: &'a mut Table<'tx, u64, u64>,
   pub(super) transaction_id_to_rune: &'a mut Table<'tx, &'static TxidValue, u128>,
 }
 
-impl RuneUpdater<'_, '_, '_> {
+impl RuneUpdater<'_, '_> {
   pub(super) fn index_runes(&mut self, tx_index: u32, tx: &Transaction, txid: Txid) -> Result<()> {
     let artifact = Runestone::decipher(tx);
 
@@ -30,14 +26,14 @@ impl RuneUpdater<'_, '_, '_> {
         if let Some(amount) = self.mint(id)? {
           *unallocated.entry(id).or_default() += amount;
 
-          if let Some(sender) = self.event_sender {
-            sender.blocking_send(Event::RuneMinted {
-              block_height: self.height,
-              txid,
-              rune_id: id,
-              amount: amount.n(),
-            })?;
-          }
+          // if let Some(sender) = self.event_sender {
+          //   sender.blocking_send(Event::RuneMinted {
+          //     block_height: self.height,
+          //     txid,
+          //     rune_id: id,
+          //     amount: amount.n(),
+          //   })?;
+          // }
         }
       }
 
@@ -198,15 +194,15 @@ impl RuneUpdater<'_, '_, '_> {
       for (id, balance) in balances {
         Index::encode_rune_balance(id, balance.n(), &mut buffer);
 
-        if let Some(sender) = self.event_sender {
-          sender.blocking_send(Event::RuneTransferred {
-            outpoint,
-            block_height: self.height,
-            txid,
-            rune_id: id,
-            amount: balance.0,
-          })?;
-        }
+        // if let Some(sender) = self.event_sender {
+        //   sender.blocking_send(Event::RuneTransferred {
+        //     outpoint,
+        //     block_height: self.height,
+        //     txid,
+        //     rune_id: id,
+        //     amount: balance.0,
+        //   })?;
+        // }
       }
 
       self
@@ -218,14 +214,14 @@ impl RuneUpdater<'_, '_, '_> {
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
 
-      if let Some(sender) = self.event_sender {
-        sender.blocking_send(Event::RuneBurned {
-          block_height: self.height,
-          txid,
-          rune_id: id,
-          amount: amount.n(),
-        })?;
-      }
+      // if let Some(sender) = self.event_sender {
+      //   sender.blocking_send(Event::RuneBurned {
+      //     block_height: self.height,
+      //     txid,
+      //     rune_id: id,
+      //     amount: amount.n(),
+      //   })?;
+      // }
     }
 
     Ok(())
@@ -308,24 +304,13 @@ impl RuneUpdater<'_, '_, '_> {
 
     self.id_to_entry.insert(id.store(), entry.store())?;
 
-    if let Some(sender) = self.event_sender {
-      sender.blocking_send(Event::RuneEtched {
-        block_height: self.height,
-        txid,
-        rune_id: id,
-      })?;
-    }
-
-    let inscription_id = InscriptionId { txid, index: 0 };
-
-    if let Some(sequence_number) = self
-      .inscription_id_to_sequence_number
-      .get(&inscription_id.store())?
-    {
-      self
-        .sequence_number_to_rune_id
-        .insert(sequence_number.value(), id.store())?;
-    }
+    // if let Some(sender) = self.event_sender {
+    //   sender.blocking_send(Event::RuneEtched {
+    //     block_height: self.height,
+    //     txid,
+    //     rune_id: id,
+    //   })?;
+    // }
 
     Ok(())
   }

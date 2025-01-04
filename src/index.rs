@@ -10,7 +10,6 @@ pub use self::entry::RuneEntry;
 pub use updater::update_index;
 
 pub(crate) mod entry;
-pub mod event;
 mod lot;
 mod reorg;
 mod updater;

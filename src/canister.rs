@@ -173,8 +173,7 @@ pub fn init(url: String) {
 }
 
 #[pre_upgrade]
-fn pre_upgrade() {
-}
+fn pre_upgrade() {}
 
 #[post_upgrade]
 fn post_upgrade() {
