@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) trait Entry: Sized {
+pub trait Entry: Sized {
   type Value;
 
   fn load(value: Self::Value) -> Self;
@@ -38,6 +38,8 @@ impl Entry for Rune {
     self.0
   }
 }
+
+pub type RuneEntryBytes = [u8; 202];
 
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct RuneEntry {
@@ -140,6 +142,18 @@ impl RuneEntry {
       .map(|(relative, absolute)| relative.min(absolute))
       .or(relative)
       .or(absolute)
+  }
+
+  pub fn to_bytes(&self) -> RuneEntryBytes {
+    let vec = bincode::serialize(&self.store()).unwrap();
+    let mut buffer = [0u8; 202];
+    buffer[..vec.len()].copy_from_slice(&vec);
+    buffer
+  }
+
+  pub fn from_bytes(bytes: RuneEntryBytes) -> Self {
+    let rune_entry_value = bincode::deserialize(&bytes).unwrap();
+    Self::load(rune_entry_value)
   }
 }
 
@@ -332,3 +346,8 @@ impl Entry for Txid {
     Txid::to_byte_array(self)
   }
 }
+pub(super) type RuneUpdateValue = (
+  RuneIdValue, // rune id
+  u128,        // burned
+  u128,        // mints
+);

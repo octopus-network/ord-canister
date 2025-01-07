@@ -1,19 +1,14 @@
 use super::*;
 
-pub(super) struct RuneUpdater<'a, 'tx> {
+pub(super) struct RuneUpdater {
   pub(super) block_time: u32,
   pub(super) burned: HashMap<RuneId, Lot>,
   pub(super) height: u32,
-  pub(super) id_to_entry: &'a mut Table<'tx, RuneIdValue, RuneEntryValue>,
   pub(super) minimum: Rune,
-  pub(super) outpoint_to_balances: &'a mut Table<'tx, &'static OutPointValue, &'static [u8]>,
-  pub(super) rune_to_id: &'a mut Table<'tx, u128, RuneIdValue>,
   pub(super) runes: u64,
-  pub(super) statistic_to_count: &'a mut Table<'tx, u64, u64>,
-  pub(super) transaction_id_to_rune: &'a mut Table<'tx, &'static TxidValue, u128>,
 }
 
-impl RuneUpdater<'_, '_> {
+impl RuneUpdater {
   pub(super) fn index_runes(&mut self, tx_index: u32, tx: &Transaction, txid: Txid) -> Result<()> {
     let artifact = Runestone::decipher(tx);
 
@@ -26,14 +21,14 @@ impl RuneUpdater<'_, '_> {
         if let Some(amount) = self.mint(id)? {
           *unallocated.entry(id).or_default() += amount;
 
-          // if let Some(sender) = self.event_sender {
-          //   sender.blocking_send(Event::RuneMinted {
-          //     block_height: self.height,
-          //     txid,
-          //     rune_id: id,
-          //     amount: amount.n(),
-          //   })?;
-          // }
+          // log!(
+          //   INFO,
+          //   "Rune minted: block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}",
+          //   self.height,
+          //   txid,
+          //   id,
+          //   amount.n()
+          // );
         }
       }
 
@@ -165,7 +160,6 @@ impl RuneUpdater<'_, '_> {
     }
 
     // update outpoint balances
-    let mut buffer: Vec<u8> = Vec::new();
     for (vout, balances) in allocated.into_iter().enumerate() {
       if balances.is_empty() {
         continue;
@@ -179,49 +173,36 @@ impl RuneUpdater<'_, '_> {
         continue;
       }
 
-      buffer.clear();
-
-      let mut balances = balances.into_iter().collect::<Vec<(RuneId, Lot)>>();
+      // let mut balances = balances.into_iter().collect::<Vec<(RuneId, Lot)>>();
 
       // Sort balances by id so tests can assert balances in a fixed order
-      balances.sort();
+      // balances.sort();
 
       let outpoint = OutPoint {
         txid,
         vout: vout.try_into().unwrap(),
       };
 
-      for (id, balance) in balances {
-        Index::encode_rune_balance(id, balance.n(), &mut buffer);
+      for (i, (id, balance)) in balances.into_iter().enumerate() {
+        crate::index::mem_insert_rune_balance(outpoint.store(), i as u64, id.store(), balance.n());
 
-        // if let Some(sender) = self.event_sender {
-        //   sender.blocking_send(Event::RuneTransferred {
-        //     outpoint,
-        //     block_height: self.height,
-        //     txid,
-        //     rune_id: id,
-        //     amount: balance.0,
-        //   })?;
-        // }
+        // log!(INFO, "Rune transferred: outpoint: {:?}, block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}", outpoint, self.height, txid, id, balance.n());
       }
-
-      self
-        .outpoint_to_balances
-        .insert(&outpoint.store(), buffer.as_slice())?;
+      crate::index::mem_insert_height_for_outpoint(outpoint.store(), self.height);
     }
 
     // increment entries with burned runes
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
 
-      // if let Some(sender) = self.event_sender {
-      //   sender.blocking_send(Event::RuneBurned {
-      //     block_height: self.height,
-      //     txid,
-      //     rune_id: id,
-      //     amount: amount.n(),
-      //   })?;
-      // }
+      // log!(
+      //   INFO,
+      //   "Rune burned: block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}",
+      //   self.height,
+      //   txid,
+      //   id,
+      //   amount.n()
+      // );
     }
 
     Ok(())
@@ -229,9 +210,9 @@ impl RuneUpdater<'_, '_> {
 
   pub(super) fn update(self) -> Result {
     for (rune_id, burned) in self.burned {
-      let mut entry = RuneEntry::load(self.id_to_entry.get(&rune_id.store())?.unwrap().value());
+      let mut entry = crate::index::mem_get_rune_entry(rune_id.store()).unwrap();
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
-      self.id_to_entry.insert(&rune_id.store(), entry.store())?;
+      crate::index::mem_insert_rune_entry(rune_id.store(), entry.to_bytes());
     }
 
     Ok(())
@@ -244,17 +225,13 @@ impl RuneUpdater<'_, '_> {
     id: RuneId,
     rune: Rune,
   ) -> Result {
-    self.rune_to_id.insert(rune.store(), id.store())?;
-    self
-      .transaction_id_to_rune
-      .insert(&txid.store(), rune.store())?;
+    crate::index::mem_insert_rune_id(rune.store(), id.store());
+    crate::index::mem_insert_transaction_id_to_rune(txid.store(), rune.store());
 
     let number = self.runes;
     self.runes += 1;
 
-    self
-      .statistic_to_count
-      .insert(&Statistic::Runes.into(), self.runes)?;
+    crate::index::mem_insert_statistic_runes(self.height, self.runes);
 
     let entry = match artifact {
       Artifact::Cenotaph(_) => RuneEntry {
@@ -302,15 +279,15 @@ impl RuneUpdater<'_, '_> {
       }
     };
 
-    self.id_to_entry.insert(id.store(), entry.store())?;
+    crate::index::mem_insert_rune_entry(id.store(), entry.to_bytes());
 
-    // if let Some(sender) = self.event_sender {
-    //   sender.blocking_send(Event::RuneEtched {
-    //     block_height: self.height,
-    //     txid,
-    //     rune_id: id,
-    //   })?;
-    // }
+    // log!(
+    //   INFO,
+    //   "Rune etched: block_height: {}, txid: {:?}, rune_id: {:?}",
+    //   self.height,
+    //   txid,
+    //   id
+    // );
 
     Ok(())
   }
@@ -335,22 +312,16 @@ impl RuneUpdater<'_, '_> {
     let rune = if let Some(rune) = rune {
       if rune < self.minimum
         || rune.is_reserved()
-        || self.rune_to_id.get(rune.0)?.is_some()
+        || crate::index::mem_get_rune_id(rune.store()).is_some()
         || !self.tx_commits_to_rune(tx, rune)?
       {
         return Ok(None);
       }
       rune
     } else {
-      let reserved_runes = self
-        .statistic_to_count
-        .get(&Statistic::ReservedRunes.into())?
-        .map(|entry| entry.value())
-        .unwrap_or_default();
+      let reserved_runes = crate::index::mem_statistic_reserved_runes();
 
-      self
-        .statistic_to_count
-        .insert(&Statistic::ReservedRunes.into(), reserved_runes + 1)?;
+      crate::index::mem_insert_statistic_reserved_runes(self.height, reserved_runes + 1);
 
       Rune::reserved(self.height.into(), tx_index)
     };
@@ -365,90 +336,87 @@ impl RuneUpdater<'_, '_> {
   }
 
   fn mint(&mut self, id: RuneId) -> Result<Option<Lot>> {
-    let Some(entry) = self.id_to_entry.get(&id.store())? else {
+    let Some(mut rune_entry) = crate::index::mem_get_rune_entry(id.store()) else {
       return Ok(None);
     };
-
-    let mut rune_entry = RuneEntry::load(entry.value());
 
     let Ok(amount) = rune_entry.mintable(self.height.into()) else {
       return Ok(None);
     };
 
-    drop(entry);
-
     rune_entry.mints += 1;
 
-    self.id_to_entry.insert(&id.store(), rune_entry.store())?;
+    crate::index::mem_insert_rune_entry(id.store(), rune_entry.to_bytes());
 
     Ok(Some(Lot(amount)))
   }
 
   fn tx_commits_to_rune(&self, tx: &Transaction, rune: Rune) -> Result<bool> {
-    let commitment = rune.commitment();
+    Ok(true)
+    // let commitment = rune.commitment();
 
-    for input in &tx.input {
-      // extracting a tapscript does not indicate that the input being spent
-      // was actually a taproot output. this is checked below, when we load the
-      // output's entry from the database
-      let Some(tapscript) = input.witness.tapscript() else {
-        continue;
-      };
+    // for input in &tx.input {
+    //   // extracting a tapscript does not indicate that the input being spent
+    //   // was actually a taproot output. this is checked below, when we load the
+    //   // output's entry from the database
+    //   let Some(tapscript) = input.witness.tapscript() else {
+    //     continue;
+    //   };
 
-      for instruction in tapscript.instructions() {
-        // ignore errors, since the extracted script may not be valid
-        let Ok(instruction) = instruction else {
-          break;
-        };
+    //   for instruction in tapscript.instructions() {
+    //     // ignore errors, since the extracted script may not be valid
+    //     let Ok(instruction) = instruction else {
+    //       break;
+    //     };
 
-        let Some(pushbytes) = instruction.push_bytes() else {
-          continue;
-        };
+    //     let Some(pushbytes) = instruction.push_bytes() else {
+    //       continue;
+    //     };
 
-        if pushbytes.as_bytes() != commitment {
-          continue;
-        }
+    //     if pushbytes.as_bytes() != commitment {
+    //       continue;
+    //     }
 
-        let Some(tx_info) = self
-          .client
-          .get_raw_transaction_info(&input.previous_output.txid, None)
-          .into_option()?
-        else {
-          panic!(
-            "can't get input transaction: {}",
-            input.previous_output.txid
-          );
-        };
+    //     let Some(tx_info) = self
+    //       .client
+    //       .get_raw_transaction_info(&input.previous_output.txid, None)
+    //       .into_option()?
+    //     else {
+    //       panic!(
+    //         "can't get input transaction: {}",
+    //         input.previous_output.txid
+    //       );
+    //     };
 
-        let taproot = tx_info.vout[input.previous_output.vout.into_usize()]
-          .script_pub_key
-          .script()?
-          .is_p2tr();
+    //     let taproot = tx_info.vout[input.previous_output.vout.into_usize()]
+    //       .script_pub_key
+    //       .script()?
+    //       .is_p2tr();
 
-        if !taproot {
-          continue;
-        }
+    //     if !taproot {
+    //       continue;
+    //     }
 
-        let commit_tx_height = self
-          .client
-          .get_block_header_info(&tx_info.blockhash.unwrap())
-          .into_option()?
-          .unwrap()
-          .height;
+    //     let commit_tx_height = self
+    //       .client
+    //       .get_block_header_info(&tx_info.blockhash.unwrap())
+    //       .into_option()?
+    //       .unwrap()
+    //       .height;
 
-        let confirmations = self
-          .height
-          .checked_sub(commit_tx_height.try_into().unwrap())
-          .unwrap()
-          + 1;
+    //     let confirmations = self
+    //       .height
+    //       .checked_sub(commit_tx_height.try_into().unwrap())
+    //       .unwrap()
+    //       + 1;
 
-        if confirmations >= Runestone::COMMIT_CONFIRMATIONS.into() {
-          return Ok(true);
-        }
-      }
-    }
+    //     if confirmations >= Runestone::COMMIT_CONFIRMATIONS.into() {
+    //       return Ok(true);
+    //     }
+    //   }
+    // }
 
-    Ok(false)
+    // Ok(false)
   }
 
   fn unallocated(&mut self, tx: &Transaction) -> Result<HashMap<RuneId, Lot>> {
@@ -457,16 +425,21 @@ impl RuneUpdater<'_, '_> {
 
     // increment unallocated runes with the runes in tx inputs
     for input in &tx.input {
-      if let Some(guard) = self
-        .outpoint_to_balances
-        .remove(&input.previous_output.store())?
+      if let Some(rune_balances) =
+        crate::index::mem_get_rune_balances(input.previous_output.store())
       {
-        let buffer = guard.value();
-        let mut i = 0;
-        while i < buffer.len() {
-          let ((id, balance), len) = Index::decode_rune_balance(&buffer[i..]).unwrap();
-          i += len;
-          *unallocated.entry(id).or_default() += balance;
+        for (i, _, _) in rune_balances {
+          let (rune_id, balance) =
+            crate::index::mem_remove_rune_balances(input.previous_output.store(), i).ok_or_else(
+              || {
+                anyhow!(
+                  "remove outpoint failed, outpoint: {:?}, i: {}",
+                  input.previous_output,
+                  i
+                )
+              },
+            )?;
+          *unallocated.entry(rune_id).or_default() += balance;
         }
       }
     }

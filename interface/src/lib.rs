@@ -3,7 +3,7 @@
 //! # Example
 //!
 //! ```
-//! use ord_canister_interface::*;
+//! use runes_indexer_interface::*;
 //!
 //! let indexer = Principal::from_text("o25oi-jaaaa-aaaal-ajj6a-cai").unwrap();
 //! let (result,): (Result<Vec<RuneBalance>, OrdError>,) = ic_cdk::call(indexer, "get_runes_by_utxo", ("ee8345590d85047c66a0e131153e5202b9bda3990bd07decd9df0a9bb2589348", 0)).await.unwrap();

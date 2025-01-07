@@ -1,9 +1,9 @@
+use super::*;
 use bitcoin::{block::Header, BlockHash};
 use candid::{self, CandidType, Deserialize, Principal};
-use core2::io::Cursor;
 use ic_cdk::api::call::RejectionCode;
 use ic_cdk::api::management_canister::bitcoin::BitcoinNetwork;
-use ord_canister_interface::OrdError;
+use runes_indexer_interface::OrdError;
 
 pub type Height = u32;
 pub type BlockHeader = Vec<u8>;
@@ -64,9 +64,9 @@ pub async fn get_block_hash(height: u32) -> crate::Result<Option<BlockHash>> {
         .first()
         .ok_or_else(|| OrdError::Params(format!("failed to get header at height: {}", height)))?;
 
-      let mut buffer = Cursor::new(header_bytes);
-      let header = <Header as bitcoin::consensus::Decodable>::consensus_decode(&mut buffer)
-        .map_err(|_| {
+      let header =
+        <Header as bitcoin::consensus::Decodable>::consensus_decode(&mut header_bytes.as_slice())
+          .map_err(|_| {
           OrdError::Params(format!("failed to decode block hash at height: {}", height))
         })?;
 
@@ -77,9 +77,6 @@ pub async fn get_block_hash(height: u32) -> crate::Result<Option<BlockHash>> {
     {
       Ok(None)
     }
-    Err(err) => Err(OrdError::Params(format!(
-      "failed to bitcoin_get_block_headers: {:?}",
-      err
-    ))),
+    Err(err) => Err(anyhow!("failed to bitcoin_get_block_headers–: {:?}", err)),
   }
 }

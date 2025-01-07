@@ -4,7 +4,7 @@ use crate::{
 };
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::*;
-use ord_canister_interface::*;
+use runes_indexer_interface::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -137,11 +137,7 @@ async fn make_single_request(
             code,
             e
           );
-          break Err(OrdError::Rpc(RpcError::Io(
-            "make_single_request".to_string(),
-            "retry limit exceeded".to_string(),
-            e,
-          )));
+          break Err(anyhow!("make_single_request: retry limit exceeded {}", e));
         }
         log!(
           ERROR,
@@ -215,20 +211,18 @@ where
     ))
   })?;
   if reply.error.is_some() {
-    return Err(OrdError::Rpc(RpcError::Endpoint(
-      endpoint.to_string(),
-      url.to_string(),
-      reply.error.map(|e| e.message).unwrap(),
-    )));
+    return Err(anyhow!(
+      "rpc error: {:?} => {}",
+      endpoint,
+      reply.error.map(|e| e.message).unwrap()
+    ));
   }
-  reply.result.ok_or(OrdError::Rpc(RpcError::Decode(
-    endpoint.to_string(),
-    url.to_string(),
-    "No result".to_string(),
-  )))
+  reply
+    .result
+    .ok_or(anyhow!("rpc error: {:?} => {}", endpoint, "No result"))
 }
 
-pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
+async fn inner_get_block(url: &str, hash: BlockHash) -> Result<Block> {
   let hex: String = make_rpc(
     url,
     "getblock",
@@ -244,11 +238,20 @@ pub(crate) async fn get_block(url: &str, hash: BlockHash) -> Result<Block> {
       e.to_string(),
     ))
   })?;
-  consensus::encode::deserialize(&hex).map_err(|e| {
-    OrdError::Rpc(RpcError::Decode(
-      "getblock".to_string(),
-      url.to_string(),
-      e.to_string(),
-    ))
-  })
+  consensus::encode::deserialize(&hex)
+    .map_err(|e| anyhow!("deserialize getblock error: {}", e.to_string()))
+}
+
+pub(crate) async fn get_block(hash: BlockHash) -> Result<crate::index::updater::BlockData> {
+  let url = crate::index::mem_get_config().bitcoin_rpc_url;
+  let block = inner_get_block(&url, hash).await?;
+
+  if block.block_hash() != hash {
+    return Err(anyhow!("wrong block hash: {}", hash.to_string()));
+  }
+
+  block
+    .check_merkle_root()
+    .then(|| crate::index::updater::BlockData::from(block))
+    .ok_or(anyhow!("wrong block merkle root: {}", hash.to_string()))
 }

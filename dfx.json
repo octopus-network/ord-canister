@@ -1,10 +1,10 @@
 {
+  "dfx": "0.18.0",
   "canisters": {
-    "ord-canister": {
+    "runes-indexer": {
       "gzip": true,
-      "candid": "ord-canister.did",
-      "package": "ord-canister",
-      "crate": "ord_canister",
+      "candid": "./canister/runes-indexer.did",
+      "package": "runes-indexer",
       "type": "rust"
     }
   },

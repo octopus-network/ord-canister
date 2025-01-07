@@ -1,3 +1,9 @@
+type BitcoinNetwork = variant { mainnet; regtest; testnet };
+type Config = record {
+  subcribers : vec principal;
+  bitcoin_rpc_url : text;
+  network : BitcoinNetwork;
+};
 type MintError = variant { Cap : nat; End : nat64; Start : nat64; Unmintable };
 type OrdError = variant {
   Rpc : RpcError;
@@ -45,22 +51,24 @@ type Result = variant { Ok; Err : text };
 type Result_1 = variant { Ok : opt OrdEtching; Err : OrdError };
 type Result_2 = variant { Ok : record { nat32; text }; Err : OrdError };
 type Result_3 = variant { Ok : OrdRuneEntry; Err : OrdError };
-type Result_4 = variant { Ok : vec RuneBalance; Err : OrdError };
-type Result_5 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
+type Result_4 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
 type RpcError = variant {
   Io : record { text; text; text };
   Endpoint : record { text; text; text };
   Decode : record { text; text; text };
 };
-type RuneBalance = record { id : RuneId; balance : nat };
-type RuneId = record { tx : nat32; block : nat64 };
-service : (text) -> {
-  add_subscriber : (text) -> (Result);
+type RunesIndexerArgs = variant { Upgrade : opt UpgradeArgs; Init : Config };
+type UpgradeArgs = record {
+  subcribers : opt vec principal;
+  bitcoin_rpc_url : opt text;
+};
+service : (RunesIndexerArgs) -> {
+  add_subscriber : (principal) -> (Result);
   get_etching : (text) -> (Result_1) query;
   get_height : () -> (Result_2) query;
   get_rune_entry_by_rune_id : (text) -> (Result_3) query;
-  get_runes_by_utxo : (text, nat32) -> (Result_4) query;
-  get_subscribers : () -> (vec text) query;
-  query_runes : (vec text) -> (Result_5) query;
-  set_url : (text) -> (Result);
+  get_subscribers : () -> (vec principal) query;
+  query_runes : (vec text) -> (Result_4) query;
+  set_bitcoin_rpc_url : (text) -> (Result);
+  start : () -> (Result);
 }
