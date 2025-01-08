@@ -1,4 +1,5 @@
 use super::*;
+use crate::index::entry::RuneBalance;
 
 pub(super) struct RuneUpdater {
   pub(super) block_time: u32,
@@ -183,11 +184,17 @@ impl RuneUpdater {
         vout: vout.try_into().unwrap(),
       };
 
-      for (i, (id, balance)) in balances.into_iter().enumerate() {
-        crate::index::mem_insert_rune_balance(outpoint.store(), i as u64, id.store(), balance.n());
+      let mut rune_balances = RuneBalances { balances: vec![] };
+
+      for (id, balance) in balances {
+        rune_balances.balances.push(RuneBalance {
+          rune_id: id,
+          balance: balance.n(),
+        });
 
         // log!(INFO, "Rune transferred: outpoint: {:?}, block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}", outpoint, self.height, txid, id, balance.n());
       }
+      crate::index::mem_insert_rune_balances(outpoint.store(), rune_balances);
       crate::index::mem_insert_height_for_outpoint(outpoint.store(), self.height);
     }
 
@@ -212,7 +219,7 @@ impl RuneUpdater {
     for (rune_id, burned) in self.burned {
       let mut entry = crate::index::mem_get_rune_entry(rune_id.store()).unwrap();
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
-      crate::index::mem_insert_rune_entry(rune_id.store(), entry.to_bytes());
+      crate::index::mem_insert_rune_entry(rune_id.store(), entry);
     }
 
     Ok(())
@@ -279,7 +286,7 @@ impl RuneUpdater {
       }
     };
 
-    crate::index::mem_insert_rune_entry(id.store(), entry.to_bytes());
+    crate::index::mem_insert_rune_entry(id.store(), entry);
 
     // log!(
     //   INFO,
@@ -346,7 +353,7 @@ impl RuneUpdater {
 
     rune_entry.mints += 1;
 
-    crate::index::mem_insert_rune_entry(id.store(), rune_entry.to_bytes());
+    crate::index::mem_insert_rune_entry(id.store(), rune_entry);
 
     Ok(Some(Lot(amount)))
   }
@@ -426,20 +433,10 @@ impl RuneUpdater {
     // increment unallocated runes with the runes in tx inputs
     for input in &tx.input {
       if let Some(rune_balances) =
-        crate::index::mem_get_rune_balances(input.previous_output.store())
+        crate::index::mem_remove_rune_balances(input.previous_output.store())
       {
-        for (i, _, _) in rune_balances {
-          let (rune_id, balance) =
-            crate::index::mem_remove_rune_balances(input.previous_output.store(), i).ok_or_else(
-              || {
-                anyhow!(
-                  "remove outpoint failed, outpoint: {:?}, i: {}",
-                  input.previous_output,
-                  i
-                )
-              },
-            )?;
-          *unallocated.entry(rune_id).or_default() += balance;
+        for rune_balance in rune_balances.balances {
+          *unallocated.entry(rune_balance.rune_id).or_default() += rune_balance.balance;
         }
       }
     }

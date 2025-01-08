@@ -76,7 +76,11 @@ pub fn do_reply(req: HttpRequest) -> HttpResponse {
     };
 
     let mut entries: Log = Default::default();
-    merge_log(&mut entries, &DEBUG, Priority::DEBUG);
+
+    if let Some("true") = req.raw_query_param("debug") {
+      merge_log(&mut entries, &DEBUG, Priority::DEBUG);
+    }
+
     merge_log(&mut entries, &INFO, Priority::INFO);
     merge_log(&mut entries, &WARNING, Priority::WARNING);
     merge_log(&mut entries, &ERROR, Priority::ERROR);

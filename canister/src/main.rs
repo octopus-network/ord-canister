@@ -1,11 +1,13 @@
-use candid::{candid_method, Principal};
+use candid::{candid_method, CandidType, Deserialize, Principal};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::{init, post_upgrade, query, update};
+use ordinals::{Rune, RuneId};
 use runes_indexer::config::RunesIndexerArgs;
-use runes_indexer::ic_log::*;
-use runes_indexer::{index::Entry, OutPoint, Txid};
-use runes_indexer_interface::*;
+use runes_indexer::index::entry::RuneBalances;
+use runes_indexer::logs::*;
+use runes_indexer::{index::Entry, Header, OutPoint, RuneEntry, Txid};
+use runes_indexer_interface::{OrdError, OrdEtching, OrdRuneBalance, OrdRuneEntry, OrdTerms};
 use std::str::FromStr;
 
 #[query]
@@ -27,18 +29,18 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalan
       }
     };
     let k = OutPoint::store(outpoint);
-    if let Some(balances) = runes_indexer::index::mem_get_rune_balances(k) {
+    if let Some(rune_balances) = runes_indexer::index::mem_get_rune_balances(k) {
       if let Some(height) = runes_indexer::index::mem_get_height_by_outpoint(k) {
         let confirmations = cur_height - height + 1;
 
         let mut outpoint_balances = Vec::new();
-        for (_, rune_id, balance) in balances.iter() {
-          let rune_entry = runes_indexer::index::mem_get_rune_entry(rune_id.store());
+        for rune_balance in rune_balances.balances.iter() {
+          let rune_entry = runes_indexer::index::mem_get_rune_entry(rune_balance.rune_id.store());
           if let Some(rune_entry) = rune_entry {
             outpoint_balances.push(OrdRuneBalance {
-              id: rune_id.to_string(),
+              id: rune_balance.rune_id.to_string(),
               confirmations,
-              amount: *balance,
+              amount: rune_balance.balance,
               divisibility: rune_entry.divisibility,
               symbol: rune_entry.symbol.map(|c| c.to_string()),
             });
@@ -177,7 +179,7 @@ fn http_request(
     ic_cdk::trap("update call rejected");
   }
   if req.path() == "/logs" {
-    runes_indexer::ic_log::do_reply(req)
+    runes_indexer::logs::do_reply(req)
   } else {
     ic_canisters_http_types::HttpResponseBuilder::not_found().build()
   }
@@ -214,6 +216,49 @@ fn post_upgrade(runes_indexer_args: Option<RunesIndexerArgs>) {
       "Cannot upgrade the canister with an Init argument. Please provide an Upgrade argument.",
     ),
   }
+}
+
+#[query]
+fn stats() -> Vec<String> {
+  let caller = ic_cdk::api::caller();
+  if !ic_cdk::api::is_controller(&caller) {
+    return vec![];
+  }
+
+  let mut v = Vec::new();
+  v.push(format!(
+    "rune_entry: {}",
+    runes_indexer::index::mem_length_rune_entry()
+  ));
+  v.push(format!(
+    "rune_to_rune_id: {}",
+    runes_indexer::index::mem_length_rune_to_rune_id()
+  ));
+  v.push(format!(
+    "transaction_id_to_rune: {}",
+    runes_indexer::index::mem_length_transaction_id_to_rune()
+  ));
+  v.push(format!(
+    "rune_balance: {}",
+    runes_indexer::index::mem_length_rune_balance()
+  ));
+  v.push(format!(
+    "outpoint_to_height: {}",
+    runes_indexer::index::mem_length_outpoint_to_height()
+  ));
+  v.push(format!(
+    "latest_block: {:?}",
+    runes_indexer::index::mem_latest_block()
+  ));
+  v.push(format!(
+    "reserved_runes: {}",
+    runes_indexer::index::mem_statistic_reserved_runes()
+  ));
+  v.push(format!(
+    "runes: {}",
+    runes_indexer::index::mem_statistic_runes()
+  ));
+  v
 }
 
 ic_cdk::export_candid!();

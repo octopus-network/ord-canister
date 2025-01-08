@@ -1,8 +1,8 @@
 mod bitcoin_api;
 pub mod config;
-pub mod ic_log;
 pub mod index;
 mod into_usize;
+pub mod logs;
 mod notifier;
 pub mod rpc;
 

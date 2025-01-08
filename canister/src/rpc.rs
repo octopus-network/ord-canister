@@ -1,5 +1,5 @@
 use crate::{
-  ic_log::{ERROR, INFO},
+  logs::{DEBUG, ERROR, INFO},
   *,
 };
 use ic_canister_log::log;
@@ -185,7 +185,7 @@ where
       })
       .flatten()
     {
-      log!(INFO, "bytes range: {:?} => {:?}", range, new_range);
+      log!(DEBUG, "bytes range: {:?} => {:?}", range, new_range);
       range = new_range;
       buf.extend_from_slice(response.body.as_slice());
       if range.0 >= range.1 {
@@ -198,7 +198,7 @@ where
     }
   }
   log!(
-    INFO,
+    DEBUG,
     "reading all {} bytes from rpc, consumed {} cycles",
     buf.len(),
     total_cycles

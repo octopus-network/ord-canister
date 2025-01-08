@@ -71,4 +71,5 @@ service : (RunesIndexerArgs) -> {
   query_runes : (vec text) -> (Result_4) query;
   set_bitcoin_rpc_url : (text) -> (Result);
   start : () -> (Result);
+  stats : () -> (vec text) query;
 }

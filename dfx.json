@@ -2,6 +2,7 @@
   "dfx": "0.18.0",
   "canisters": {
     "runes-indexer": {
+      "optimize": "cycles",
       "gzip": true,
       "candid": "./canister/runes-indexer.did",
       "package": "runes-indexer",

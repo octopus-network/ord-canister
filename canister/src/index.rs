@@ -2,10 +2,10 @@ pub use self::entry::{Entry, RuneEntry};
 use self::lot::Lot;
 use super::*;
 use crate::config::Config;
-use crate::ic_log::*;
 use crate::index::entry::{
-  HeaderValue, OutPointValue, RuneEntryBytes, RuneIdValue, RuneUpdateValue, TxidValue,
+  HeaderValue, OutPointValue, OutPoints, RuneBalances, RuneIdValue, RuneUpdates, Runes, TxidValue,
 };
+use crate::logs::*;
 use bitcoin::block::Header;
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::bitcoin::BitcoinNetwork;
@@ -41,13 +41,13 @@ thread_local! {
       )
   );
 
-  static OUTPOINT_TO_RUNE_BALANCES: RefCell<StableBTreeMap<(OutPointValue, u64), (RuneIdValue, u128), Memory>> = RefCell::new(
+  static OUTPOINT_TO_RUNE_BALANCES: RefCell<StableBTreeMap<OutPointValue, RuneBalances, Memory>> = RefCell::new(
       StableBTreeMap::init(
           MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(2))),
       )
   );
 
-  static RUNE_ID_TO_RUNE_ENTRY: RefCell<StableBTreeMap<RuneIdValue, RuneEntryBytes, Memory>> = RefCell::new(
+  static RUNE_ID_TO_RUNE_ENTRY: RefCell<StableBTreeMap<RuneIdValue, RuneEntry, Memory>> = RefCell::new(
       StableBTreeMap::init(
           MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3))),
       )
@@ -83,19 +83,19 @@ thread_local! {
       )
   );
 
-  static HEIGHT_TO_RUNES: RefCell<StableBTreeMap<(u32, u64), u128, Memory>> = RefCell::new(
+  static HEIGHT_TO_RUNES: RefCell<StableBTreeMap<u32, Runes, Memory>> = RefCell::new(
       StableBTreeMap::init(
           MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(9))),
       )
   );
 
-  static HEIGHT_TO_RUNE_UPDATES: RefCell<StableBTreeMap<(u32, u64), RuneUpdateValue, Memory>> = RefCell::new(
+  static HEIGHT_TO_RUNE_UPDATES: RefCell<StableBTreeMap<u32, RuneUpdates, Memory>> = RefCell::new(
       StableBTreeMap::init(
           MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(10))),
       )
   );
 
-  static HEIGHT_TO_OUTPOINTS: RefCell<StableBTreeMap<(u32, u64), OutPointValue, Memory>> = RefCell::new(
+  static HEIGHT_TO_OUTPOINTS: RefCell<StableBTreeMap<u32, OutPoints, Memory>> = RefCell::new(
       StableBTreeMap::init(
           MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(11))),
       )
@@ -119,7 +119,7 @@ pub fn mem_latest_block_height() -> Option<u32> {
   HEIGHT_TO_BLOCK_HEADER.with(|m| m.borrow().iter().rev().next().map(|(height, _)| height))
 }
 
-pub(crate) fn mem_statistic_reserved_runes() -> u64 {
+pub fn mem_statistic_reserved_runes() -> u64 {
   HEIGHT_TO_STATISTIC_RESERVED_RUNES.with(|m| {
     m.borrow()
       .iter()
@@ -130,11 +130,11 @@ pub(crate) fn mem_statistic_reserved_runes() -> u64 {
   })
 }
 
-pub(crate) fn mem_insert_statistic_reserved_runes(height: u32, runes: u64) {
+pub fn mem_insert_statistic_reserved_runes(height: u32, runes: u64) {
   HEIGHT_TO_STATISTIC_RESERVED_RUNES.with(|m| m.borrow_mut().insert(height, runes));
 }
 
-pub(crate) fn mem_statistic_runes() -> u64 {
+pub fn mem_statistic_runes() -> u64 {
   HEIGHT_TO_STATISTIC_RUNES.with(|m| {
     m.borrow()
       .iter()
@@ -145,75 +145,63 @@ pub(crate) fn mem_statistic_runes() -> u64 {
   })
 }
 
-pub(crate) fn mem_insert_statistic_runes(height: u32, runes: u64) {
+pub fn mem_insert_statistic_runes(height: u32, runes: u64) {
   HEIGHT_TO_STATISTIC_RUNES.with(|m| m.borrow_mut().insert(height, runes));
 }
 
-pub(crate) fn mem_insert_block_header(height: u32, header_value: HeaderValue) {
+pub fn mem_insert_block_header(height: u32, header_value: HeaderValue) {
   HEIGHT_TO_BLOCK_HEADER.with(|m| m.borrow_mut().insert(height, header_value));
 }
 
-pub(crate) fn mem_insert_rune_balance(
-  outpoint_value: OutPointValue,
-  i: u64,
-  rune_id_value: RuneIdValue,
-  balance: u128,
-) {
-  OUTPOINT_TO_RUNE_BALANCES.with(|m| {
-    m.borrow_mut()
-      .insert((outpoint_value, i), (rune_id_value, balance))
-  });
+pub fn mem_insert_rune_balances(outpoint_value: OutPointValue, rune_balances: RuneBalances) {
+  OUTPOINT_TO_RUNE_BALANCES.with(|m| m.borrow_mut().insert(outpoint_value, rune_balances));
 }
 
-pub fn mem_get_rune_balances(outpoint_value: OutPointValue) -> Option<Vec<(u64, RuneId, u128)>> {
-  OUTPOINT_TO_RUNE_BALANCES.with(|m| {
-    let balances: Vec<(u64, RuneId, u128)> = m
-      .borrow_mut()
-      .range((outpoint_value, 0)..)
-      .take_while(|((p, _), _)| *p == outpoint_value)
-      .map(|((_, i), (rune_id_value, balance))| (i as u64, RuneId::load(rune_id_value), balance))
-      .collect();
-
-    if balances.is_empty() {
-      None
-    } else {
-      Some(balances)
-    }
-  })
+pub fn mem_get_rune_balances(outpoint_value: OutPointValue) -> Option<RuneBalances> {
+  OUTPOINT_TO_RUNE_BALANCES.with(|m| m.borrow().get(&outpoint_value))
 }
 
-pub(crate) fn mem_remove_rune_balances(
-  outpoint_value: OutPointValue,
-  i: u64,
-) -> Option<(RuneId, u128)> {
-  OUTPOINT_TO_RUNE_BALANCES.with(|m| {
-    m.borrow_mut()
-      .remove(&(outpoint_value, i))
-      .map(|(rune_id_value, balance)| (RuneId::load(rune_id_value), balance))
-  })
+pub(crate) fn mem_remove_rune_balances(outpoint_value: OutPointValue) -> Option<RuneBalances> {
+  OUTPOINT_TO_RUNE_BALANCES.with(|m| m.borrow_mut().remove(&outpoint_value))
 }
 
 pub fn mem_get_rune_entry(rune_id_value: RuneIdValue) -> Option<RuneEntry> {
-  RUNE_ID_TO_RUNE_ENTRY.with(|m| {
-    m.borrow()
-      .get(&rune_id_value)
-      .map(|e| RuneEntry::from_bytes(e))
-  })
+  RUNE_ID_TO_RUNE_ENTRY.with(|m| m.borrow().get(&rune_id_value))
 }
 
-pub(crate) fn mem_insert_rune_entry(rune_id_value: RuneIdValue, rune_entry_bytes: RuneEntryBytes) {
-  RUNE_ID_TO_RUNE_ENTRY.with(|m| m.borrow_mut().insert(rune_id_value, rune_entry_bytes));
+pub fn mem_insert_rune_entry(rune_id_value: RuneIdValue, rune_entry: RuneEntry) {
+  RUNE_ID_TO_RUNE_ENTRY.with(|m| m.borrow_mut().insert(rune_id_value, rune_entry));
+}
+
+pub fn mem_length_rune_to_rune_id() -> u64 {
+  RUNE_TO_RUNE_ID.with(|m| m.borrow().len())
+}
+
+pub fn mem_length_rune_entry() -> u64 {
+  RUNE_ID_TO_RUNE_ENTRY.with(|m| m.borrow().len())
+}
+
+pub fn mem_length_rune_balance() -> u64 {
+  OUTPOINT_TO_RUNE_BALANCES.with(|m| m.borrow().len())
+}
+
+pub fn mem_length_transaction_id_to_rune() -> u64 {
+  TRANSACTION_ID_TO_RUNE.with(|m| m.borrow().len())
+}
+
+pub fn mem_length_outpoint_to_height() -> u64 {
+  OUTPOINT_TO_HEIGHT.with(|m| m.borrow().len())
 }
 
 pub(crate) fn mem_get_rune_id(rune: u128) -> Option<RuneIdValue> {
   RUNE_TO_RUNE_ID.with(|m| m.borrow().get(&rune))
 }
 
-pub(crate) fn mem_insert_rune_id(rune: u128, rune_id_value: RuneIdValue) {
+pub fn mem_insert_rune_id(rune: u128, rune_id_value: RuneIdValue) {
   RUNE_TO_RUNE_ID.with(|m| m.borrow_mut().insert(rune, rune_id_value));
 }
 
-pub(crate) fn mem_insert_transaction_id_to_rune(txid: TxidValue, rune: u128) {
+pub fn mem_insert_transaction_id_to_rune(txid: TxidValue, rune: u128) {
   TRANSACTION_ID_TO_RUNE.with(|m| m.borrow_mut().insert(txid, rune));
 }
 
@@ -239,21 +227,13 @@ pub fn mem_get_etching(txid: Txid) -> Option<(RuneId, RuneEntry)> {
       .get(&Txid::store(txid))
       .and_then(|rune| RUNE_TO_RUNE_ID.with(|m| m.borrow().get(&rune)))
       .and_then(|id| {
-        RUNE_ID_TO_RUNE_ENTRY.with(|m| {
-          m.borrow()
-            .get(&id)
-            .map(|e| (RuneId::load(id), RuneEntry::from_bytes(e)))
-        })
+        RUNE_ID_TO_RUNE_ENTRY.with(|m| m.borrow().get(&id).map(|e| (RuneId::load(id), e)))
       })
   })
 }
 
 pub fn mem_get_rune_entry_by_rune_id(rune_id: RuneId) -> Option<RuneEntry> {
-  RUNE_ID_TO_RUNE_ENTRY.with(|m| {
-    m.borrow()
-      .get(&rune_id.store())
-      .map(|e| RuneEntry::from_bytes(e))
-  })
+  RUNE_ID_TO_RUNE_ENTRY.with(|m| m.borrow().get(&rune_id.store()))
 }
 
 pub fn init_mainnet() {
@@ -288,8 +268,7 @@ pub fn init_mainnet() {
       symbol: Some('\u{29C9}'),
       timestamp: 0,
       turbo: true,
-    }
-    .to_bytes(),
+    },
   );
 
   mem_insert_transaction_id_to_rune(etching.store(), rune.store());

@@ -1,4 +1,6 @@
 use super::*;
+use ic_stable_structures::storable::{Bound, Storable};
+use std::borrow::Cow;
 
 pub trait Entry: Sized {
   type Value;
@@ -38,8 +40,6 @@ impl Entry for Rune {
     self.0
   }
 }
-
-pub type RuneEntryBytes = [u8; 202];
 
 #[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct RuneEntry {
@@ -142,18 +142,6 @@ impl RuneEntry {
       .map(|(relative, absolute)| relative.min(absolute))
       .or(relative)
       .or(absolute)
-  }
-
-  pub fn to_bytes(&self) -> RuneEntryBytes {
-    let vec = bincode::serialize(&self.store()).unwrap();
-    let mut buffer = [0u8; 202];
-    buffer[..vec.len()].copy_from_slice(&vec);
-    buffer
-  }
-
-  pub fn from_bytes(bytes: RuneEntryBytes) -> Self {
-    let rune_entry_value = bincode::deserialize(&bytes).unwrap();
-    Self::load(rune_entry_value)
   }
 }
 
@@ -287,6 +275,22 @@ impl Entry for RuneEntry {
   }
 }
 
+impl Storable for RuneEntry {
+  fn to_bytes(&self) -> Cow<[u8]> {
+    let vec = bincode::serialize(self).unwrap();
+    Cow::Owned(vec)
+  }
+
+  fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    bincode::deserialize(&bytes).unwrap()
+  }
+
+  const BOUND: Bound = Bound::Bounded {
+    max_size: 307,
+    is_fixed_size: false,
+  };
+}
+
 pub(super) type RuneIdValue = (u64, u32);
 
 impl Entry for RuneId {
@@ -346,8 +350,88 @@ impl Entry for Txid {
     Txid::to_byte_array(self)
   }
 }
-pub(super) type RuneUpdateValue = (
-  RuneIdValue, // rune id
-  u128,        // burned
-  u128,        // mints
-);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuneUpdate {
+  rune_id: RuneId,
+  burned: u128,
+  mints: u128,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuneUpdates {
+  updates: Vec<RuneUpdate>,
+}
+
+impl Storable for RuneUpdates {
+  fn to_bytes(&self) -> Cow<[u8]> {
+    let vec = bincode::serialize(self).unwrap();
+    Cow::Owned(vec)
+  }
+
+  fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    bincode::deserialize(&bytes).unwrap()
+  }
+
+  const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Runes {
+  runes: Vec<u128>,
+}
+
+impl Storable for Runes {
+  fn to_bytes(&self) -> Cow<[u8]> {
+    let vec = bincode::serialize(self).unwrap();
+    Cow::Owned(vec)
+  }
+
+  fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    bincode::deserialize(&bytes).unwrap()
+  }
+
+  const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OutPoints {
+  outpoints: Vec<OutPoint>,
+}
+
+impl Storable for OutPoints {
+  fn to_bytes(&self) -> Cow<[u8]> {
+    let vec = bincode::serialize(self).unwrap();
+    Cow::Owned(vec)
+  }
+
+  fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    bincode::deserialize(&bytes).unwrap()
+  }
+
+  const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuneBalance {
+  pub rune_id: RuneId,
+  pub balance: u128,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuneBalances {
+  pub balances: Vec<RuneBalance>,
+}
+
+impl Storable for RuneBalances {
+  fn to_bytes(&self) -> Cow<[u8]> {
+    let vec = bincode::serialize(self).unwrap();
+    Cow::Owned(vec)
+  }
+
+  fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    bincode::deserialize(&bytes).unwrap()
+  }
+
+  const BOUND: Bound = Bound::Unbounded;
+}

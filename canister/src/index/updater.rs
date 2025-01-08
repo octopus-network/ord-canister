@@ -50,9 +50,7 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
             );
           }
         },
-        Ok(None) => {
-          log!(CRITICAL, "failed to get_block_hash at height {}", height);
-        }
+        Ok(None) => {}
         Err(e) => {
           log!(
             CRITICAL,
@@ -79,6 +77,23 @@ fn index_block(height: u32, block: BlockData) -> Result<()> {
     timestamp(block.header.time.into()),
     block.txdata.len()
   );
+
+  // Log statistics every 200 blocks
+  if height % 200 == 0 {
+    log!(
+      INFO,
+      "Index statistics at height {}: latest_block: {:?}, reserved_runes: {}, runes: {}, rune_to_rune_id: {}, rune_entry: {}, transaction_id_to_rune: {}, rune_balance: {}, outpoint_to_height: {}",
+      height,
+      crate::index::mem_latest_block(),
+      crate::index::mem_statistic_reserved_runes(),
+      crate::index::mem_statistic_runes(),
+      crate::index::mem_length_rune_to_rune_id(),
+      crate::index::mem_length_rune_entry(),
+      crate::index::mem_length_transaction_id_to_rune(),
+      crate::index::mem_length_rune_balance(),
+      crate::index::mem_length_outpoint_to_height()
+    );
+  }
 
   let runes = crate::index::mem_statistic_runes();
 
