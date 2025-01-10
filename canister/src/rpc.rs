@@ -2,6 +2,8 @@ use crate::{
   logs::{DEBUG, ERROR, INFO},
   *,
 };
+use bitcoin::{BlockHash, Txid};
+use bitcoincore_rpc_json::{GetBlockHeaderResult, GetRawTransactionResult};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::*;
 use runes_indexer_interface::*;
@@ -62,6 +64,7 @@ fn partial_request(
   endpoint: &'static str,
   params: impl Into<serde_json::Value>,
   range: (u64, u64),
+  subnet_nodes: u64,
 ) -> (CanisterHttpRequestArgument, u128) {
   let payload = Payload {
     jsonrpc: "1.0",
@@ -74,7 +77,11 @@ fn partial_request(
   hasher.update(&body);
   let uniq: [u8; 32] = hasher.finalize().into();
   let uniq = hex::encode(uniq[0..16].to_vec());
-  let cycles = estimate_cycles(body.len() as u64 + 512, range.1 - range.0 + 1 + 512, 13);
+  let cycles = estimate_cycles(
+    body.len() as u64 + 512,
+    range.1 - range.0 + 1 + 512,
+    subnet_nodes,
+  );
   (
     CanisterHttpRequestArgument {
       url: url.to_string(),
@@ -113,8 +120,8 @@ fn partial_request(
 
 const MAX_RESPONSE_BYTES: u64 = 1_999_000;
 
-pub(crate) fn estimate_cycles(req_len: u64, rsp_len: u64, n: u128) -> u128 {
-  (3_000_000 + 60_000 * n + 400 * req_len as u128 + 800 * rsp_len as u128) * n
+pub(crate) fn estimate_cycles(req_len: u64, rsp_len: u64, n: u64) -> u128 {
+  (3_000_000 + 60_000 * n as u128 + 400 * req_len as u128 + 800 * rsp_len as u128) * n as u128
 }
 
 async fn make_single_request(
@@ -155,16 +162,23 @@ pub(crate) async fn make_rpc<R>(
   url: impl ToString,
   endpoint: &'static str,
   params: impl Into<serde_json::Value> + Clone,
-  max_length: u64,
+  max_response_bytes: u64,
+  subnet_nodes: u64,
 ) -> Result<R>
 where
   R: for<'a> Deserialize<'a> + std::fmt::Debug,
 {
-  let mut range = (0, max_length);
-  let mut buf = Vec::<u8>::with_capacity(max_length as usize);
+  let mut range = (0, max_response_bytes);
+  let mut buf = Vec::<u8>::with_capacity(max_response_bytes as usize);
   let mut total_cycles = 0;
   loop {
-    let (args, cycles) = partial_request(url.to_string(), endpoint, params.clone(), range);
+    let (args, cycles) = partial_request(
+      url.to_string(),
+      endpoint,
+      params.clone(),
+      range,
+      subnet_nodes,
+    );
     total_cycles += cycles;
     let response = make_single_request(args, cycles).await?;
     if response.status == candid::Nat::from(200u32) {
@@ -199,8 +213,9 @@ where
   }
   log!(
     DEBUG,
-    "reading all {} bytes from rpc, consumed {} cycles",
+    "reading all {} bytes from rpc {}, consumed {} cycles",
     buf.len(),
+    endpoint,
     total_cycles
   );
   let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
@@ -222,29 +237,33 @@ where
     .ok_or(anyhow!("rpc error: {:?} => {}", endpoint, "No result"))
 }
 
-async fn inner_get_block(url: &str, hash: BlockHash) -> Result<Block> {
+async fn inner_get_block(
+  url: &str,
+  max_response_bytes: u64,
+  subnet_nodes: u64,
+  hash: BlockHash,
+) -> Result<Block> {
+  let args = [into_json(hash)?, 0.into()];
   let hex: String = make_rpc(
     url,
     "getblock",
-    serde_json::json!([format!("{:x}", hash), 0]),
-    MAX_RESPONSE_BYTES,
+    args.to_vec(),
+    max_response_bytes,
+    subnet_nodes,
   )
   .await?;
-  use hex::FromHex;
-  let hex = <Vec<u8>>::from_hex(hex).map_err(|e| {
-    OrdError::Rpc(RpcError::Decode(
-      "getblock".to_string(),
-      url.to_string(),
-      e.to_string(),
-    ))
-  })?;
-  consensus::encode::deserialize(&hex)
-    .map_err(|e| anyhow!("deserialize getblock error: {}", e.to_string()))
+  Ok(encode::deserialize_hex(&hex)?)
 }
 
 pub(crate) async fn get_block(hash: BlockHash) -> Result<crate::index::updater::BlockData> {
-  let url = crate::index::mem_get_config().bitcoin_rpc_url;
-  let block = inner_get_block(&url, hash).await?;
+  let config = crate::index::mem_get_config();
+  let block = inner_get_block(
+    &config.bitcoin_rpc_url,
+    MAX_RESPONSE_BYTES,
+    config.get_subnet_nodes(),
+    hash,
+  )
+  .await?;
 
   if block.block_hash() != hash {
     return Err(anyhow!("wrong block hash: {}", hash.to_string()));
@@ -254,4 +273,94 @@ pub(crate) async fn get_block(hash: BlockHash) -> Result<crate::index::updater::
     .check_merkle_root()
     .then(|| crate::index::updater::BlockData::from(block))
     .ok_or(anyhow!("wrong block merkle root: {}", hash.to_string()))
+}
+
+// 1885 bytes
+async fn inner_get_raw_transaction_info(
+  url: &str,
+  max_response_bytes: u64,
+  subnet_nodes: u64,
+  txid: &Txid,
+  block_hash: Option<&BlockHash>,
+) -> Result<GetRawTransactionResult> {
+  let args = [
+    into_json(txid)?,
+    into_json(true)?,
+    opt_into_json(block_hash)?,
+  ];
+  let res: GetRawTransactionResult = make_rpc(
+    url,
+    "getrawtransaction",
+    args.to_vec(),
+    max_response_bytes,
+    subnet_nodes,
+  )
+  .await?;
+  Ok(res)
+}
+
+pub(crate) async fn get_raw_transaction_info(
+  txid: &Txid,
+  block_hash: Option<&BlockHash>,
+) -> Result<GetRawTransactionResult> {
+  let config = crate::index::mem_get_config();
+  inner_get_raw_transaction_info(
+    &config.bitcoin_rpc_url,
+    4_096,
+    config.get_subnet_nodes(),
+    txid,
+    block_hash,
+  )
+  .await
+}
+
+// 640 bytes
+async fn inner_get_block_header_info(
+  url: &str,
+  max_response_bytes: u64,
+  subnet_nodes: u64,
+  hash: &bitcoin::BlockHash,
+) -> Result<GetBlockHeaderResult> {
+  let args = [into_json(hash)?, true.into()];
+  let res: GetBlockHeaderResult = make_rpc(
+    url,
+    "getblockheader",
+    args.to_vec(),
+    max_response_bytes,
+    subnet_nodes,
+  )
+  .await?;
+  Ok(res)
+}
+
+pub(crate) async fn get_block_header_info(
+  hash: &bitcoin::BlockHash,
+) -> Result<GetBlockHeaderResult> {
+  let config = crate::index::mem_get_config();
+  inner_get_block_header_info(
+    &config.bitcoin_rpc_url,
+    1_024,
+    config.get_subnet_nodes(),
+    hash,
+  )
+  .await
+}
+
+/// Shorthand for converting a variable into a serde_json::Value.
+fn into_json<T>(val: T) -> Result<serde_json::Value>
+where
+  T: serde::ser::Serialize,
+{
+  Ok(serde_json::to_value(val)?)
+}
+
+/// Shorthand for converting an Option into an Option<serde_json::Value>.
+fn opt_into_json<T>(opt: Option<T>) -> Result<serde_json::Value>
+where
+  T: serde::ser::Serialize,
+{
+  match opt {
+    Some(val) => Ok(into_json(val)?),
+    None => Ok(serde_json::Value::Null),
+  }
 }

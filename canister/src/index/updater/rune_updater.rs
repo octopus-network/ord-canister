@@ -10,7 +10,12 @@ pub(super) struct RuneUpdater {
 }
 
 impl RuneUpdater {
-  pub(super) fn index_runes(&mut self, tx_index: u32, tx: &Transaction, txid: Txid) -> Result<()> {
+  pub(super) async fn index_runes(
+    &mut self,
+    tx_index: u32,
+    tx: &Transaction,
+    txid: Txid,
+  ) -> Result<()> {
     let artifact = Runestone::decipher(tx);
 
     let mut unallocated = self.unallocated(tx)?;
@@ -33,7 +38,7 @@ impl RuneUpdater {
         }
       }
 
-      let etched = self.etched(tx_index, tx, artifact)?;
+      let etched = self.etched(tx_index, tx, artifact).await?;
 
       if let Artifact::Runestone(runestone) = artifact {
         if let Some((id, ..)) = etched {
@@ -202,14 +207,14 @@ impl RuneUpdater {
     for (id, amount) in burned {
       *self.burned.entry(id).or_default() += amount;
 
-      // log!(
-      //   INFO,
-      //   "Rune burned: block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}",
-      //   self.height,
-      //   txid,
-      //   id,
-      //   amount.n()
-      // );
+      log!(
+        INFO,
+        "Rune burned: block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}",
+        self.height,
+        txid,
+        id,
+        amount.n()
+      );
     }
 
     Ok(())
@@ -288,18 +293,18 @@ impl RuneUpdater {
 
     crate::index::mem_insert_rune_entry(id.store(), entry);
 
-    // log!(
-    //   INFO,
-    //   "Rune etched: block_height: {}, txid: {:?}, rune_id: {:?}",
-    //   self.height,
-    //   txid,
-    //   id
-    // );
+    log!(
+      INFO,
+      "Rune etched: block_height: {}, txid: {:?}, rune_id: {:?}",
+      self.height,
+      txid,
+      id
+    );
 
     Ok(())
   }
 
-  fn etched(
+  async fn etched(
     &mut self,
     tx_index: u32,
     tx: &Transaction,
@@ -320,7 +325,7 @@ impl RuneUpdater {
       if rune < self.minimum
         || rune.is_reserved()
         || crate::index::mem_get_rune_id(rune.store()).is_some()
-        || !self.tx_commits_to_rune(tx, rune)?
+        || !self.tx_commits_to_rune(tx, rune).await?
       {
         return Ok(None);
       }
@@ -358,72 +363,60 @@ impl RuneUpdater {
     Ok(Some(Lot(amount)))
   }
 
-  fn tx_commits_to_rune(&self, tx: &Transaction, rune: Rune) -> Result<bool> {
-    Ok(true)
-    // let commitment = rune.commitment();
+  async fn tx_commits_to_rune(&self, tx: &Transaction, rune: Rune) -> Result<bool> {
+    let commitment = rune.commitment();
 
-    // for input in &tx.input {
-    //   // extracting a tapscript does not indicate that the input being spent
-    //   // was actually a taproot output. this is checked below, when we load the
-    //   // output's entry from the database
-    //   let Some(tapscript) = input.witness.tapscript() else {
-    //     continue;
-    //   };
+    for input in &tx.input {
+      // extracting a tapscript does not indicate that the input being spent
+      // was actually a taproot output. this is checked below, when we load the
+      // output's entry from the database
+      let Some(tapscript) = input.witness.tapscript() else {
+        continue;
+      };
 
-    //   for instruction in tapscript.instructions() {
-    //     // ignore errors, since the extracted script may not be valid
-    //     let Ok(instruction) = instruction else {
-    //       break;
-    //     };
+      for instruction in tapscript.instructions() {
+        // ignore errors, since the extracted script may not be valid
+        let Ok(instruction) = instruction else {
+          break;
+        };
 
-    //     let Some(pushbytes) = instruction.push_bytes() else {
-    //       continue;
-    //     };
+        let Some(pushbytes) = instruction.push_bytes() else {
+          continue;
+        };
 
-    //     if pushbytes.as_bytes() != commitment {
-    //       continue;
-    //     }
+        if pushbytes.as_bytes() != commitment {
+          continue;
+        }
 
-    //     let Some(tx_info) = self
-    //       .client
-    //       .get_raw_transaction_info(&input.previous_output.txid, None)
-    //       .into_option()?
-    //     else {
-    //       panic!(
-    //         "can't get input transaction: {}",
-    //         input.previous_output.txid
-    //       );
-    //     };
+        let tx_info =
+          crate::rpc::get_raw_transaction_info(&input.previous_output.txid, None).await?;
 
-    //     let taproot = tx_info.vout[input.previous_output.vout.into_usize()]
-    //       .script_pub_key
-    //       .script()?
-    //       .is_p2tr();
+        let taproot = tx_info.vout[input.previous_output.vout.into_usize()]
+          .script_pub_key
+          .script()?
+          .is_p2tr();
 
-    //     if !taproot {
-    //       continue;
-    //     }
+        if !taproot {
+          continue;
+        }
 
-    //     let commit_tx_height = self
-    //       .client
-    //       .get_block_header_info(&tx_info.blockhash.unwrap())
-    //       .into_option()?
-    //       .unwrap()
-    //       .height;
+        let commit_tx_height = crate::rpc::get_block_header_info(&tx_info.blockhash.unwrap())
+          .await?
+          .height;
 
-    //     let confirmations = self
-    //       .height
-    //       .checked_sub(commit_tx_height.try_into().unwrap())
-    //       .unwrap()
-    //       + 1;
+        let confirmations = self
+          .height
+          .checked_sub(commit_tx_height.try_into().unwrap())
+          .unwrap()
+          + 1;
 
-    //     if confirmations >= Runestone::COMMIT_CONFIRMATIONS.into() {
-    //       return Ok(true);
-    //     }
-    //   }
-    // }
+        if confirmations >= Runestone::COMMIT_CONFIRMATIONS as u32 {
+          return Ok(true);
+        }
+      }
+    }
 
-    // Ok(false)
+    Ok(false)
   }
 
   fn unallocated(&mut self, tx: &Transaction) -> Result<HashMap<RuneId, Lot>> {
@@ -438,6 +431,14 @@ impl RuneUpdater {
         for rune_balance in rune_balances.balances {
           *unallocated.entry(rune_balance.rune_id).or_default() += rune_balance.balance;
         }
+        crate::index::mem_remove_height_for_outpoint(input.previous_output.store()).ok_or_else(
+          || {
+            anyhow!(
+              "Outpoint not found in outpoint_to_height: {:?}",
+              input.previous_output
+            )
+          },
+        )?;
       }
     }
 

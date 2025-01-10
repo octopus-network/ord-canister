@@ -21,6 +21,16 @@ impl Default for Config {
   }
 }
 
+impl Config {
+  pub fn get_subnet_nodes(&self) -> u64 {
+    match self.network {
+      BitcoinNetwork::Regtest => 13,
+      BitcoinNetwork::Testnet => 13,
+      BitcoinNetwork::Mainnet => 34,
+    }
+  }
+}
+
 impl Storable for Config {
   fn to_bytes(&self) -> Cow<[u8]> {
     let bytes = bincode::serialize(self).unwrap();

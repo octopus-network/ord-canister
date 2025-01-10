@@ -31,7 +31,7 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
       match crate::bitcoin_api::get_block_hash(height).await {
         Ok(Some(block_hash)) => match crate::rpc::get_block(block_hash).await {
           Ok(block) => {
-            if let Err(e) = index_block(height, block) {
+            if let Err(e) = index_block(height, block).await {
               log!(
                 CRITICAL,
                 "failed to index_block at height {}: {:?}",
@@ -67,7 +67,7 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
   Ok(())
 }
 
-fn index_block(height: u32, block: BlockData) -> Result<()> {
+async fn index_block(height: u32, block: BlockData) -> Result<()> {
   // Reorg::detect_reorg(&block, self.height, self.index)?;
 
   log!(
@@ -106,7 +106,9 @@ fn index_block(height: u32, block: BlockData) -> Result<()> {
   };
 
   for (i, (tx, txid)) in block.txdata.iter().enumerate() {
-    rune_updater.index_runes(u32::try_from(i).unwrap(), tx, *txid)?;
+    rune_updater
+      .index_runes(u32::try_from(i).unwrap(), tx, *txid)
+      .await?;
   }
 
   rune_updater.update()?;

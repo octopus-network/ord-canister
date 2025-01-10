@@ -193,6 +193,10 @@ pub fn mem_length_outpoint_to_height() -> u64 {
   OUTPOINT_TO_HEIGHT.with(|m| m.borrow().len())
 }
 
+pub(crate) fn mem_remove_height_for_outpoint(outpoint_value: OutPointValue) -> Option<u32> {
+  OUTPOINT_TO_HEIGHT.with(|m| m.borrow_mut().remove(&outpoint_value))
+}
+
 pub(crate) fn mem_get_rune_id(rune: u128) -> Option<RuneIdValue> {
   RUNE_TO_RUNE_ID.with(|m| m.borrow().get(&rune))
 }
