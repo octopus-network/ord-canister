@@ -1,5 +1,6 @@
 use self::rune_updater::RuneUpdater;
 use super::*;
+use crate::index::reorg::Reorg;
 
 mod rune_updater;
 
@@ -27,18 +28,38 @@ impl From<Block> for BlockData {
 pub fn update_index(network: BitcoinNetwork) -> Result {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(10), move || {
     ic_cdk::spawn(async move {
-      let (height, prev_blockhash) = crate::index::next_block(network);
+      let (height, index_prev_blockhash) = crate::index::next_block(network);
       match crate::bitcoin_api::get_block_hash(height).await {
         Ok(Some(block_hash)) => match crate::rpc::get_block(block_hash).await {
           Ok(block) => {
-            if let Err(e) = index_block(height, block).await {
-              log!(
-                CRITICAL,
-                "failed to index_block at height {}: {:?}",
-                height,
-                e
-              );
-              return;
+            match Reorg::detect_reorg(index_prev_blockhash, block.header.prev_blockhash, height)
+              .await
+            {
+              Ok(()) => {
+                if let Err(e) = index_block(height, block).await {
+                  log!(
+                    CRITICAL,
+                    "failed to index_block at height {}: {:?}",
+                    height,
+                    e
+                  );
+                  return;
+                }
+                Reorg::clear_change_record(height);
+              }
+              Err(e) => match e {
+                reorg::Error::Recoverable { height, depth } => {
+                  Reorg::handle_reorg(height, depth);
+                }
+                reorg::Error::Unrecoverable => {
+                  log!(
+                    CRITICAL,
+                    "unrecoverable reorg detected at height {}",
+                    height
+                  );
+                  return;
+                }
+              },
             }
           }
           Err(e) => {
@@ -68,8 +89,6 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
 }
 
 async fn index_block(height: u32, block: BlockData) -> Result<()> {
-  // Reorg::detect_reorg(&block, self.height, self.index)?;
-
   log!(
     INFO,
     "Block {} at {} with {} transactions…",
@@ -82,15 +101,15 @@ async fn index_block(height: u32, block: BlockData) -> Result<()> {
   if height % 200 == 0 {
     log!(
       INFO,
-      "Index statistics at height {}: latest_block: {:?}, reserved_runes: {}, runes: {}, rune_to_rune_id: {}, rune_entry: {}, transaction_id_to_rune: {}, rune_balance: {}, outpoint_to_height: {}",
+      "Index statistics at height {}: latest_block: {:?}, reserved_runes: {}, runes: {}, rune_to_rune_id: {}, rune_entry: {}, transaction_id_to_rune: {}, outpoint_to_rune_balances: {}, outpoint_to_height: {}",
       height,
       crate::index::mem_latest_block(),
       crate::index::mem_statistic_reserved_runes(),
       crate::index::mem_statistic_runes(),
       crate::index::mem_length_rune_to_rune_id(),
-      crate::index::mem_length_rune_entry(),
+      crate::index::mem_length_rune_id_to_rune_entry(),
       crate::index::mem_length_transaction_id_to_rune(),
-      crate::index::mem_length_rune_balance(),
+      crate::index::mem_length_outpoint_to_rune_balances(),
       crate::index::mem_length_outpoint_to_height()
     );
   }
@@ -103,6 +122,7 @@ async fn index_block(height: u32, block: BlockData) -> Result<()> {
     height,
     minimum: Rune::minimum_at_height(bitcoin::Network::Bitcoin, Height(height)),
     runes,
+    change_record: ChangeRecord::new(),
   };
 
   for (i, (tx, txid)) in block.txdata.iter().enumerate() {

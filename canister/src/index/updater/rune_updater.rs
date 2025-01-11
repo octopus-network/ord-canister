@@ -7,6 +7,7 @@ pub(super) struct RuneUpdater {
   pub(super) height: u32,
   pub(super) minimum: Rune,
   pub(super) runes: u64,
+  pub(super) change_record: ChangeRecord,
 }
 
 impl RuneUpdater {
@@ -199,8 +200,10 @@ impl RuneUpdater {
 
         // log!(INFO, "Rune transferred: outpoint: {:?}, block_height: {}, txid: {:?}, rune_id: {:?}, amount: {:?}", outpoint, self.height, txid, id, balance.n());
       }
-      crate::index::mem_insert_rune_balances(outpoint.store(), rune_balances);
-      crate::index::mem_insert_height_for_outpoint(outpoint.store(), self.height);
+      crate::index::mem_insert_outpoint_to_rune_balances(outpoint.store(), rune_balances);
+      crate::index::mem_insert_outpoint_to_height(outpoint.store(), self.height);
+
+      self.change_record.added_outpoints.push(outpoint);
     }
 
     // increment entries with burned runes
@@ -220,12 +223,19 @@ impl RuneUpdater {
     Ok(())
   }
 
-  pub(super) fn update(self) -> Result {
+  pub(super) fn update(mut self) -> Result {
     for (rune_id, burned) in self.burned {
-      let mut entry = crate::index::mem_get_rune_entry(rune_id.store()).unwrap();
+      let mut entry = crate::index::mem_get_rune_id_to_rune_entry(rune_id.store()).unwrap();
+
+      if !self.change_record.burned.contains_key(&rune_id) {
+        self.change_record.burned.insert(rune_id, entry.burned);
+      }
+
       entry.burned = entry.burned.checked_add(burned.n()).unwrap();
-      crate::index::mem_insert_rune_entry(rune_id.store(), entry);
+      crate::index::mem_insert_rune_id_to_rune_entry(rune_id.store(), entry);
     }
+
+    crate::index::mem_insert_change_record(self.height, self.change_record);
 
     Ok(())
   }
@@ -237,7 +247,7 @@ impl RuneUpdater {
     id: RuneId,
     rune: Rune,
   ) -> Result {
-    crate::index::mem_insert_rune_id(rune.store(), id.store());
+    crate::index::mem_insert_rune_to_rune_id(rune.store(), id.store());
     crate::index::mem_insert_transaction_id_to_rune(txid.store(), rune.store());
 
     let number = self.runes;
@@ -291,7 +301,9 @@ impl RuneUpdater {
       }
     };
 
-    crate::index::mem_insert_rune_entry(id.store(), entry);
+    crate::index::mem_insert_rune_id_to_rune_entry(id.store(), entry);
+
+    self.change_record.added_runes.push((rune, id, txid));
 
     log!(
       INFO,
@@ -324,7 +336,7 @@ impl RuneUpdater {
     let rune = if let Some(rune) = rune {
       if rune < self.minimum
         || rune.is_reserved()
-        || crate::index::mem_get_rune_id(rune.store()).is_some()
+        || crate::index::mem_get_rune_to_rune_id(rune.store()).is_some()
         || !self.tx_commits_to_rune(tx, rune).await?
       {
         return Ok(None);
@@ -348,7 +360,7 @@ impl RuneUpdater {
   }
 
   fn mint(&mut self, id: RuneId) -> Result<Option<Lot>> {
-    let Some(mut rune_entry) = crate::index::mem_get_rune_entry(id.store()) else {
+    let Some(mut rune_entry) = crate::index::mem_get_rune_id_to_rune_entry(id.store()) else {
       return Ok(None);
     };
 
@@ -356,9 +368,13 @@ impl RuneUpdater {
       return Ok(None);
     };
 
+    if !self.change_record.mints.contains_key(&id) {
+      self.change_record.mints.insert(id, rune_entry.mints);
+    }
+
     rune_entry.mints += 1;
 
-    crate::index::mem_insert_rune_entry(id.store(), rune_entry);
+    crate::index::mem_insert_rune_id_to_rune_entry(id.store(), rune_entry);
 
     Ok(Some(Lot(amount)))
   }
@@ -426,19 +442,23 @@ impl RuneUpdater {
     // increment unallocated runes with the runes in tx inputs
     for input in &tx.input {
       if let Some(rune_balances) =
-        crate::index::mem_remove_rune_balances(input.previous_output.store())
+        crate::index::mem_remove_outpoint_to_rune_balances(input.previous_output.store())
       {
-        for rune_balance in rune_balances.balances {
+        for rune_balance in rune_balances.balances.clone() {
           *unallocated.entry(rune_balance.rune_id).or_default() += rune_balance.balance;
         }
-        crate::index::mem_remove_height_for_outpoint(input.previous_output.store()).ok_or_else(
-          || {
+        let height = crate::index::mem_remove_outpoint_to_height(input.previous_output.store())
+          .ok_or_else(|| {
             anyhow!(
               "Outpoint not found in outpoint_to_height: {:?}",
               input.previous_output
             )
-          },
-        )?;
+          })?;
+
+        self
+          .change_record
+          .removed_outpoints
+          .push((input.previous_output, rune_balances, height));
       }
     }
 

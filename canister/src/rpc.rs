@@ -275,7 +275,6 @@ pub(crate) async fn get_block(hash: BlockHash) -> Result<crate::index::updater::
     .ok_or(anyhow!("wrong block merkle root: {}", hash.to_string()))
 }
 
-// 1885 bytes
 async fn inner_get_raw_transaction_info(
   url: &str,
   max_response_bytes: u64,
@@ -299,6 +298,7 @@ async fn inner_get_raw_transaction_info(
   Ok(res)
 }
 
+// 1885 ~ 2713 bytes
 pub(crate) async fn get_raw_transaction_info(
   txid: &Txid,
   block_hash: Option<&BlockHash>,
@@ -314,7 +314,6 @@ pub(crate) async fn get_raw_transaction_info(
   .await
 }
 
-// 640 bytes
 async fn inner_get_block_header_info(
   url: &str,
   max_response_bytes: u64,
@@ -333,6 +332,7 @@ async fn inner_get_block_header_info(
   Ok(res)
 }
 
+// 640 ~ 643 bytes
 pub(crate) async fn get_block_header_info(
   hash: &bitcoin::BlockHash,
 ) -> Result<GetBlockHeaderResult> {

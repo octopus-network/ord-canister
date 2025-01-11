@@ -29,13 +29,14 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalan
       }
     };
     let k = OutPoint::store(outpoint);
-    if let Some(rune_balances) = runes_indexer::index::mem_get_rune_balances(k) {
-      if let Some(height) = runes_indexer::index::mem_get_height_by_outpoint(k) {
+    if let Some(rune_balances) = runes_indexer::index::mem_get_outpoint_to_rune_balances(k) {
+      if let Some(height) = runes_indexer::index::mem_get_outpoint_to_height(k) {
         let confirmations = cur_height - height + 1;
 
         let mut outpoint_balances = Vec::new();
         for rune_balance in rune_balances.balances.iter() {
-          let rune_entry = runes_indexer::index::mem_get_rune_entry(rune_balance.rune_id.store());
+          let rune_entry =
+            runes_indexer::index::mem_get_rune_id_to_rune_entry(rune_balance.rune_id.store());
           if let Some(rune_entry) = rune_entry {
             outpoint_balances.push(OrdRuneBalance {
               id: rune_balance.rune_id.to_string(),
@@ -82,8 +83,8 @@ pub fn get_etching(txid: String) -> Result<Option<OrdEtching>, OrdError> {
 pub fn get_rune_entry_by_rune_id(rune_id: String) -> Result<OrdRuneEntry, OrdError> {
   let rune_id =
     ordinals::RuneId::from_str(&rune_id).map_err(|e| OrdError::Params(e.to_string()))?;
-  let rune_entry =
-    runes_indexer::index::mem_get_rune_entry_by_rune_id(rune_id).ok_or(OrdError::RuneNotFound)?;
+  let rune_entry = runes_indexer::index::mem_get_rune_id_to_rune_entry(rune_id.store())
+    .ok_or(OrdError::RuneNotFound)?;
   let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
   Ok(OrdRuneEntry {
     confirmations: cur_height - rune_entry.block as u32 + 1,
@@ -92,7 +93,7 @@ pub fn get_rune_entry_by_rune_id(rune_id: String) -> Result<OrdRuneEntry, OrdErr
     divisibility: rune_entry.divisibility,
     etching: rune_entry.etching.to_string(),
     mints: rune_entry.mints,
-    number: 0,
+    number: rune_entry.number,
     premine: rune_entry.premine,
     spaced_rune: rune_entry.spaced_rune.to_string(),
     symbol: rune_entry.symbol.map(|c| c.to_string()),
@@ -148,7 +149,7 @@ pub fn set_bitcoin_rpc_url(url: String) -> Result<(), String> {
   }
   let mut config = runes_indexer::index::mem_get_config();
   config.bitcoin_rpc_url = url;
-  runes_indexer::index::mem_set_config(config);
+  runes_indexer::index::mem_set_config(config).unwrap();
 
   Ok(())
 }
@@ -166,7 +167,7 @@ pub fn add_subscriber(canister_id: Principal) -> Result<(), String> {
   }
   let mut config = runes_indexer::index::mem_get_config();
   config.subcribers.push(canister_id);
-  runes_indexer::index::mem_set_config(config);
+  runes_indexer::index::mem_set_config(config).unwrap();
 
   Ok(())
 }
@@ -190,7 +191,7 @@ fn http_request(
 fn init(runes_indexer_args: RunesIndexerArgs) {
   match runes_indexer_args {
     RunesIndexerArgs::Init(config) => {
-      runes_indexer::index::mem_set_config(config);
+      runes_indexer::index::mem_set_config(config).unwrap();
     }
     RunesIndexerArgs::Upgrade(_) => ic_cdk::trap(
       "Cannot initialize the canister with an Upgrade argument. Please provide an Init argument.",
@@ -209,7 +210,7 @@ fn post_upgrade(runes_indexer_args: Option<RunesIndexerArgs>) {
       if let Some(subscribers) = upgrade_args.subcribers {
         config.subcribers = subscribers;
       }
-      runes_indexer::index::mem_set_config(config);
+      runes_indexer::index::mem_set_config(config).unwrap();
     }
     None | Some(RunesIndexerArgs::Upgrade(None)) => {}
     _ => ic_cdk::trap(
@@ -228,7 +229,7 @@ fn stats() -> Vec<String> {
   let mut v = Vec::new();
   v.push(format!(
     "rune_entry: {}",
-    runes_indexer::index::mem_length_rune_entry()
+    runes_indexer::index::mem_length_rune_id_to_rune_entry()
   ));
   v.push(format!(
     "rune_to_rune_id: {}",
@@ -240,7 +241,7 @@ fn stats() -> Vec<String> {
   ));
   v.push(format!(
     "rune_balance: {}",
-    runes_indexer::index::mem_length_rune_balance()
+    runes_indexer::index::mem_length_outpoint_to_rune_balances()
   ));
   v.push(format!(
     "outpoint_to_height: {}",
