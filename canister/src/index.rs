@@ -1,24 +1,35 @@
-pub use self::entry::{Entry, RuneEntry};
+use self::entry::{Entry, RuneEntry};
 use self::lot::Lot;
-use super::*;
+use super::Result;
 use crate::config::Config;
 use crate::index::entry::{
   ChangeRecord, HeaderValue, OutPointValue, RuneBalances, RuneIdValue, TxidValue,
 };
 use crate::logs::*;
-use bitcoin::block::Header;
+use anyhow::anyhow;
+use bitcoin::{
+  block::Header,
+  blockdata::constants::SUBSIDY_HALVING_INTERVAL,
+  consensus::{self, Decodable, Encodable},
+  hash_types::BlockHash,
+  hashes::Hash,
+  Block, OutPoint, Transaction, Txid,
+};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::bitcoin::BitcoinNetwork;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
-use ordinals::RuneId;
+use ordinals::{
+  Artifact, Edict, Etching, Height, Pile, Rune, RuneId, Runestone, SatPoint, SpacedRune, Terms,
+};
 use runes_indexer_interface::MintError;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 pub mod entry;
 mod lot;
-pub mod reorg;
+mod reorg;
 pub mod updater;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;

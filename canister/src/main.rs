@@ -1,12 +1,11 @@
-use candid::{candid_method, CandidType, Deserialize, Principal};
+use bitcoin::{OutPoint, Txid};
+use candid::{candid_method, Principal};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::{init, post_upgrade, query, update};
-use ordinals::{Rune, RuneId};
 use runes_indexer::config::RunesIndexerArgs;
-use runes_indexer::index::entry::RuneBalances;
-use runes_indexer::logs::*;
-use runes_indexer::{index::Entry, Header, OutPoint, RuneEntry, Txid};
+use runes_indexer::index::entry::Entry;
+use runes_indexer::logs::{CRITICAL, WARNING};
 use runes_indexer_interface::{OrdError, OrdEtching, OrdRuneBalance, OrdRuneEntry, OrdTerms};
 use std::str::FromStr;
 
@@ -136,7 +135,8 @@ pub fn start() -> Result<(), String> {
     return Err("Not authorized".to_string());
   }
 
-  runes_indexer::index::updater::update_index(runes_indexer::index::mem_get_config().network);
+  let config = runes_indexer::index::mem_get_config();
+  let _ = runes_indexer::index::updater::update_index(config.network, config.subcribers);
 
   Ok(())
 }

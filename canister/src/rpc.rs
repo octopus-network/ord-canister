@@ -1,7 +1,7 @@
-use crate::{
-  logs::{DEBUG, ERROR, INFO},
-  *,
-};
+use super::Result;
+use crate::logs::{DEBUG, ERROR};
+use anyhow::anyhow;
+use bitcoin::{consensus::encode, Block};
 use bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc_json::{GetBlockHeaderResult, GetRawTransactionResult};
 use ic_canister_log::log;
@@ -298,7 +298,7 @@ async fn inner_get_raw_transaction_info(
   Ok(res)
 }
 
-// 1885 ~ 2713 bytes
+// 1885 ~ 3522 bytes
 pub(crate) async fn get_raw_transaction_info(
   txid: &Txid,
   block_hash: Option<&BlockHash>,
@@ -332,7 +332,7 @@ async fn inner_get_block_header_info(
   Ok(res)
 }
 
-// 640 ~ 643 bytes
+// 640 ~ 644 bytes
 pub(crate) async fn get_block_header_info(
   hash: &bitcoin::BlockHash,
 ) -> Result<GetBlockHeaderResult> {

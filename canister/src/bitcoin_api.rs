@@ -1,8 +1,7 @@
-use super::*;
+use anyhow::anyhow;
 use bitcoin::{block::Header, BlockHash};
 use candid::{self, CandidType, Deserialize, Principal};
-use ic_cdk::api::call::RejectionCode;
-use ic_cdk::api::management_canister::bitcoin::BitcoinNetwork;
+use ic_cdk::api::{call::RejectionCode, management_canister::bitcoin::BitcoinNetwork};
 use runes_indexer_interface::OrdError;
 
 pub type Height = u32;

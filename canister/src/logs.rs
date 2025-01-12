@@ -1,5 +1,4 @@
-use ic_canister_log::export as export_logs;
-use ic_canister_log::{declare_log_buffer, GlobalBuffer};
+use ic_canister_log::{declare_log_buffer, export as export_logs, GlobalBuffer};
 use ic_canisters_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use serde_derive::Deserialize;
 use time::OffsetDateTime;

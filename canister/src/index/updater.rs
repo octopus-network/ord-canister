@@ -1,6 +1,8 @@
 use self::rune_updater::RuneUpdater;
 use super::*;
 use crate::index::reorg::Reorg;
+use crate::timestamp;
+use candid::Principal;
 
 mod rune_updater;
 
@@ -25,7 +27,7 @@ impl From<Block> for BlockData {
   }
 }
 
-pub fn update_index(network: BitcoinNetwork) -> Result {
+pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Result {
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(10), move || {
     ic_cdk::spawn(async move {
       let (height, index_prev_blockhash) = crate::index::next_block(network);
@@ -36,6 +38,11 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
               .await
             {
               Ok(()) => {
+                let txids: Vec<String> = block
+                  .txdata
+                  .iter()
+                  .map(|(_, txid)| txid.to_string())
+                  .collect();
                 if let Err(e) = index_block(height, block).await {
                   log!(
                     CRITICAL,
@@ -46,6 +53,22 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
                   return;
                 }
                 Reorg::clear_change_record(height);
+                for subscriber in subscribers.iter() {
+                  let _ = crate::notifier::notify_new_block(
+                    *subscriber,
+                    height,
+                    block_hash.to_string(),
+                    txids.clone(),
+                  )
+                  .await;
+                  log!(
+                    INFO,
+                    "notified subscriber: {:?} with block_height: {:?} block_hash: {:?}",
+                    subscriber,
+                    height,
+                    block_hash
+                  );
+                }
               }
               Err(e) => match e {
                 reorg::Error::Recoverable { height, depth } => {
@@ -81,7 +104,7 @@ pub fn update_index(network: BitcoinNetwork) -> Result {
           );
         }
       }
-      update_index(network);
+      let _ = update_index(network, subscribers);
     });
   });
 
