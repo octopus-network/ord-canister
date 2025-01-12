@@ -161,14 +161,13 @@ pub fn get_subscribers() -> Vec<String> {
 }
 
 #[update]
-pub fn add_subscriber(canister_id: String) -> Result<(), String> {
+pub fn remove_subscriber(idx: usize) -> Result<(), String> {
   let caller = ic_cdk::api::caller();
   if !ic_cdk::api::is_controller(&caller) {
     return Err("Not authorized".to_string());
   }
   let _ = crate::subscribers(|s| {
-    s.push(SBox::new(canister_id.clone()).expect("MemoryOverflow"))
-      .map_err(|e| e.to_string())
+    s.remove(idx);
   });
   Ok(())
 }
