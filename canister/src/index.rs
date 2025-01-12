@@ -45,7 +45,6 @@ thread_local! {
       ).unwrap()
   );
 
-  // TODO: trim outdated headers
   static HEIGHT_TO_BLOCK_HEADER: RefCell<StableBTreeMap<u32, HeaderValue, Memory>> = RefCell::new(
       StableBTreeMap::init(
           MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1))),
