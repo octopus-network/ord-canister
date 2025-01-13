@@ -1,5 +1,8 @@
 {
-  "runes-indexer": {
+  "runes-indexer-testnet": {
     "ic": "f2dwm-caaaa-aaaao-qjxlq-cai"
+  },
+  "runes-indexer": {
+    "ic": "kzrva-ziaaa-aaaar-qamyq-cai"
   }
 }
