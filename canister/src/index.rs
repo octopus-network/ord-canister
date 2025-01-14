@@ -262,6 +262,10 @@ pub(crate) fn mem_remove_outpoint_to_height(outpoint_value: OutPointValue) -> Op
   OUTPOINT_TO_HEIGHT.with(|m| m.borrow_mut().remove(&outpoint_value))
 }
 
+pub fn mem_length_change_record() -> u64 {
+  HEIGHT_TO_CHANGE_RECORD.with(|m| m.borrow().len())
+}
+
 pub(crate) fn mem_insert_change_record(height: u32, change_record: ChangeRecord) {
   HEIGHT_TO_CHANGE_RECORD.with(|m| m.borrow_mut().insert(height, change_record));
 }

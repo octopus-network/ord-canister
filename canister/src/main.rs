@@ -159,19 +159,6 @@ pub fn get_subscribers() -> Vec<Principal> {
   runes_indexer::index::mem_get_config().subcribers
 }
 
-#[update]
-pub fn add_subscriber(canister_id: Principal) -> Result<(), String> {
-  let caller = ic_cdk::api::caller();
-  if !ic_cdk::api::is_controller(&caller) {
-    return Err("Not authorized".to_string());
-  }
-  let mut config = runes_indexer::index::mem_get_config();
-  config.subcribers.push(canister_id);
-  runes_indexer::index::mem_set_config(config).unwrap();
-
-  Ok(())
-}
-
 #[query(hidden = true)]
 fn http_request(
   req: ic_canisters_http_types::HttpRequest,
@@ -258,6 +245,10 @@ fn stats() -> Vec<String> {
   v.push(format!(
     "runes: {}",
     runes_indexer::index::mem_statistic_runes()
+  ));
+  v.push(format!(
+    "change_record: {}",
+    runes_indexer::index::mem_length_change_record()
   ));
   v
 }
