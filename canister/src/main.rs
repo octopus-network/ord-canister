@@ -1,10 +1,17 @@
+use bitcoin::block::Header;
 use bitcoin::{OutPoint, Txid};
+use candid::CandidType;
+use candid::Deserialize;
 use candid::{candid_method, Principal};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
 use ic_cdk_macros::{init, post_upgrade, query, update};
+use ordinals::Rune;
+use ordinals::RuneId;
 use runes_indexer::config::RunesIndexerArgs;
 use runes_indexer::index::entry::Entry;
+use runes_indexer::index::entry::RuneBalances;
+use runes_indexer::index::entry::RuneEntry;
 use runes_indexer::logs::{CRITICAL, INFO, WARNING};
 use runes_indexer_interface::{OrdError, OrdEtching, OrdRuneBalance, OrdRuneEntry, OrdTerms};
 use std::str::FromStr;
@@ -218,6 +225,49 @@ fn post_upgrade(runes_indexer_args: Option<RunesIndexerArgs>) {
       "Cannot upgrade the canister with an Init argument. Please provide an Upgrade argument.",
     ),
   }
+}
+
+#[derive(CandidType, Deserialize)]
+struct LoadArgs {
+  data: Vec<u8>,
+}
+
+#[update]
+#[candid_method]
+fn load(args: LoadArgs) -> Result<(), String> {
+  let bytes = lz4::block::decompress(&args.data, None).map_err(|e| e.to_string())?;
+  if bytes[0] == 200u8 {
+    let m: Vec<(RuneId, RuneEntry)> =
+      bincode::deserialize(&bytes[1..]).map_err(|e| e.to_string())?;
+    m.iter().for_each(|(rune_id, rune_entry)| {
+      runes_indexer::index::mem_insert_rune_id_to_rune_entry(rune_id.store(), *rune_entry);
+    });
+  } else if bytes[0] == 201u8 {
+    let m: Vec<(Rune, RuneId)> = bincode::deserialize(&bytes[1..]).map_err(|e| e.to_string())?;
+    m.iter().for_each(|(rune, rune_id)| {
+      runes_indexer::index::mem_insert_rune_to_rune_id(rune.store(), rune_id.store());
+    });
+  } else if bytes[0] == 202u8 {
+    let m: Vec<(Txid, u128)> = bincode::deserialize(&bytes[1..]).map_err(|e| e.to_string())?;
+    m.iter().for_each(|(txid, rune)| {
+      runes_indexer::index::mem_insert_transaction_id_to_rune(txid.store(), *rune);
+    });
+  } else if bytes[0] == 203u8 {
+    let m: Vec<(OutPoint, RuneBalances, u32)> =
+      bincode::deserialize(&bytes[1..]).map_err(|e| e.to_string())?;
+    m.iter().for_each(|(outpoint, rune_balances, height)| {
+      let op = outpoint.store();
+      runes_indexer::index::mem_insert_outpoint_to_rune_balances(op, rune_balances.clone());
+      runes_indexer::index::mem_insert_outpoint_to_height(op, *height);
+    });
+  } else if bytes[0] == 204u8 {
+    let (reserved_runes, runes, (height, header)): (u64, u64, (u32, Header)) =
+      bincode::deserialize(&bytes[1..]).map_err(|e| e.to_string())?;
+    runes_indexer::index::mem_insert_statistic_reserved_runes(height, reserved_runes);
+    runes_indexer::index::mem_insert_statistic_runes(height, runes);
+    runes_indexer::index::mem_insert_block_header(height, header.store());
+  }
+  Ok(())
 }
 
 ic_cdk::export_candid!();

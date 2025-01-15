@@ -29,3 +29,4 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 sha2 = "0.10.8"
 thiserror = "1"
 time = "0.3"
+lz4 = "1.28.1"

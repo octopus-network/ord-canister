@@ -4,6 +4,7 @@ type Config = record {
   bitcoin_rpc_url : text;
   network : BitcoinNetwork;
 };
+type LoadArgs = record { data : blob };
 type MintError = variant { Cap : nat; End : nat64; Start : nat64; Unmintable };
 type OrdError = variant {
   Rpc : RpcError;
@@ -50,8 +51,8 @@ type OrdTerms = record {
 type Result = variant { Ok : opt OrdEtching; Err : OrdError };
 type Result_1 = variant { Ok : record { nat32; text }; Err : OrdError };
 type Result_2 = variant { Ok : OrdRuneEntry; Err : OrdError };
-type Result_3 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
-type Result_4 = variant { Ok; Err : text };
+type Result_3 = variant { Ok; Err : text };
+type Result_4 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
 type RpcError = variant {
   Io : record { text; text; text };
   Endpoint : record { text; text; text };
@@ -67,8 +68,9 @@ service : (RunesIndexerArgs) -> {
   get_height : () -> (Result_1) query;
   get_rune_entry_by_rune_id : (text) -> (Result_2) query;
   get_subscribers : () -> (vec principal) query;
-  query_runes : (vec text) -> (Result_3) query;
-  set_bitcoin_rpc_url : (text) -> (Result_4);
-  start : () -> (Result_4);
-  stop : () -> (Result_4);
+  load : (LoadArgs) -> (Result_3);
+  query_runes : (vec text) -> (Result_4) query;
+  set_bitcoin_rpc_url : (text) -> (Result_3);
+  start : () -> (Result_3);
+  stop : () -> (Result_3);
 }
