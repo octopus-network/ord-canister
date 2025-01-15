@@ -13,7 +13,7 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 lazy_static = "1.4"
 unicase = "2.6"
-hyper-tls = "0.6.0"
+hyper-tls = "0.6"
 hyper-util = { version ="0.1", features = ["full"] }
 bytes = "1"
 http-body-util = "0.1.0"

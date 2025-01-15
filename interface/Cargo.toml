@@ -1,5 +1,5 @@
 [package]
-name = "ord-canister-interface"
+name = "runes-indexer-interface"
 version = "0.1.0"
 authors = ["kachinsky@oct.network"]
 repository = "https://github.com/octopus-network/ord-canister"
