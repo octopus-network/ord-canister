@@ -32,11 +32,16 @@ pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Res
   ic_cdk_timers::set_timer(std::time::Duration::from_secs(10), move || {
     ic_cdk::spawn(async move {
       let (height, index_prev_blockhash) = crate::index::next_block(network);
-      match crate::bitcoin_api::get_block_hash(height).await {
+      match crate::bitcoin_api::get_block_hash(network, height).await {
         Ok(Some(block_hash)) => match crate::rpc::get_block(block_hash).await {
           Ok(block) => {
-            match Reorg::detect_reorg(index_prev_blockhash, block.header.prev_blockhash, height)
-              .await
+            match Reorg::detect_reorg(
+              network,
+              index_prev_blockhash,
+              block.header.prev_blockhash,
+              height,
+            )
+            .await
             {
               Ok(()) => {
                 let txids: Vec<String> = block

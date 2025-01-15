@@ -2,6 +2,7 @@ use crate::index::entry::Entry;
 use crate::index::INFO;
 use bitcoin::block::BlockHash;
 use ic_canister_log::log;
+use ic_cdk::api::management_canister::bitcoin::BitcoinNetwork;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, PartialEq)]
@@ -29,6 +30,7 @@ pub struct Reorg {}
 
 impl Reorg {
   pub(crate) async fn detect_reorg(
+    network: BitcoinNetwork,
     index_prev_blockhash: Option<BlockHash>,
     bitcoind_prev_blockhash: BlockHash,
     height: u32,
@@ -42,7 +44,7 @@ impl Reorg {
               .ok_or(Error::Unrecoverable)?;
 
           let bitcoin_height = height.checked_sub(depth).expect("height overflow");
-          let block_hash = crate::bitcoin_api::get_block_hash(bitcoin_height)
+          let block_hash = crate::bitcoin_api::get_block_hash(network, bitcoin_height)
             .await
             .map_err(|_| Error::Unrecoverable)?;
 

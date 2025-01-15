@@ -54,8 +54,11 @@ pub(crate) async fn get_block_headers(
   res
 }
 
-pub async fn get_block_hash(height: u32) -> crate::Result<Option<BlockHash>> {
-  match get_block_headers(BitcoinNetwork::Mainnet, height, Some(height)).await {
+pub async fn get_block_hash(
+  network: BitcoinNetwork,
+  height: u32,
+) -> crate::Result<Option<BlockHash>> {
+  match get_block_headers(network, height, Some(height)).await {
     Ok(response) => {
       let header_bytes = response
         .0
@@ -76,6 +79,6 @@ pub async fn get_block_hash(height: u32) -> crate::Result<Option<BlockHash>> {
     {
       Ok(None)
     }
-    Err(err) => Err(anyhow!("failed to bitcoin_get_block_headers–: {:?}", err)),
+    Err(err) => Err(anyhow!("failed to bitcoin_get_block_headers: {:?}", err)),
   }
 }
