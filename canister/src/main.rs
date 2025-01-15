@@ -5,7 +5,7 @@ use ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs
 use ic_cdk_macros::{init, post_upgrade, query, update};
 use runes_indexer::config::RunesIndexerArgs;
 use runes_indexer::index::entry::Entry;
-use runes_indexer::logs::{CRITICAL, WARNING};
+use runes_indexer::logs::{CRITICAL, INFO, WARNING};
 use runes_indexer_interface::{OrdError, OrdEtching, OrdRuneBalance, OrdRuneEntry, OrdTerms};
 use std::str::FromStr;
 
@@ -135,8 +135,22 @@ pub fn start() -> Result<(), String> {
     return Err("Not authorized".to_string());
   }
 
+  runes_indexer::index::cancel_shutdown();
   let config = runes_indexer::index::mem_get_config();
   let _ = runes_indexer::index::updater::update_index(config.network, config.subcribers);
+
+  Ok(())
+}
+
+#[update]
+pub fn stop() -> Result<(), String> {
+  let caller = ic_cdk::api::caller();
+  if !ic_cdk::api::is_controller(&caller) {
+    return Err("Not authorized".to_string());
+  }
+
+  runes_indexer::index::shut_down();
+  log!(INFO, "Waiting for index thread to finish...");
 
   Ok(())
 }
@@ -204,53 +218,6 @@ fn post_upgrade(runes_indexer_args: Option<RunesIndexerArgs>) {
       "Cannot upgrade the canister with an Init argument. Please provide an Upgrade argument.",
     ),
   }
-}
-
-#[query]
-fn stats() -> Vec<String> {
-  let caller = ic_cdk::api::caller();
-  if !ic_cdk::api::is_controller(&caller) {
-    return vec![];
-  }
-
-  let mut v = Vec::new();
-  v.push(format!(
-    "rune_entry: {}",
-    runes_indexer::index::mem_length_rune_id_to_rune_entry()
-  ));
-  v.push(format!(
-    "rune_to_rune_id: {}",
-    runes_indexer::index::mem_length_rune_to_rune_id()
-  ));
-  v.push(format!(
-    "transaction_id_to_rune: {}",
-    runes_indexer::index::mem_length_transaction_id_to_rune()
-  ));
-  v.push(format!(
-    "rune_balance: {}",
-    runes_indexer::index::mem_length_outpoint_to_rune_balances()
-  ));
-  v.push(format!(
-    "outpoint_to_height: {}",
-    runes_indexer::index::mem_length_outpoint_to_height()
-  ));
-  v.push(format!(
-    "latest_block: {:?}",
-    runes_indexer::index::mem_latest_block()
-  ));
-  v.push(format!(
-    "reserved_runes: {}",
-    runes_indexer::index::mem_statistic_reserved_runes()
-  ));
-  v.push(format!(
-    "runes: {}",
-    runes_indexer::index::mem_statistic_runes()
-  ));
-  v.push(format!(
-    "change_record: {}",
-    runes_indexer::index::mem_length_change_record()
-  ));
-  v
 }
 
 ic_cdk::export_candid!();

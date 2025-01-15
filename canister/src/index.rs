@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::index::entry::{
   ChangeRecord, HeaderValue, OutPointValue, RuneBalances, RuneIdValue, TxidValue,
 };
-use crate::logs::*;
+use crate::logs::INFO;
 use anyhow::anyhow;
 use bitcoin::{
   block::Header,
@@ -26,6 +26,7 @@ use runes_indexer_interface::MintError;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::atomic::{self, AtomicBool};
 
 pub mod entry;
 mod lot;
@@ -100,6 +101,20 @@ thread_local! {
   );
 }
 
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+
+pub fn shut_down() {
+  SHUTTING_DOWN.store(true, atomic::Ordering::Relaxed);
+}
+
+pub fn cancel_shutdown() {
+  SHUTTING_DOWN.store(false, atomic::Ordering::Relaxed);
+}
+
+pub fn is_shutting_down() -> bool {
+  SHUTTING_DOWN.load(atomic::Ordering::Relaxed)
+}
+
 pub fn mem_get_config() -> Config {
   CONFIG.with(|m| m.borrow().get().clone())
 }
@@ -143,6 +158,20 @@ pub fn mem_remove_block_header(height: u32) -> Option<HeaderValue> {
   HEIGHT_TO_BLOCK_HEADER.with(|m| m.borrow_mut().remove(&height))
 }
 
+pub fn mem_prune_block_header(height: u32) {
+  HEIGHT_TO_BLOCK_HEADER.with(|m| {
+    let mut map = m.borrow_mut();
+    let keys_to_remove: Vec<u32> = map
+      .iter()
+      .take_while(|(h, _)| *h <= height)
+      .map(|(h, _)| h)
+      .collect();
+    for key in keys_to_remove {
+      map.remove(&key);
+    }
+  });
+}
+
 pub fn mem_statistic_reserved_runes() -> u64 {
   HEIGHT_TO_STATISTIC_RESERVED_RUNES.with(|m| {
     m.borrow()
@@ -162,6 +191,20 @@ pub fn mem_remove_statistic_reserved_runes(height: u32) -> Option<u64> {
   HEIGHT_TO_STATISTIC_RESERVED_RUNES.with(|m| m.borrow_mut().remove(&height))
 }
 
+pub fn mem_prune_statistic_reserved_runes(height: u32) {
+  HEIGHT_TO_STATISTIC_RESERVED_RUNES.with(|m| {
+    let mut map = m.borrow_mut();
+    let keys_to_remove: Vec<u32> = map
+      .iter()
+      .take_while(|(h, _)| *h <= height)
+      .map(|(h, _)| h)
+      .collect();
+    for key in keys_to_remove {
+      map.remove(&key);
+    }
+  });
+}
+
 pub fn mem_statistic_runes() -> u64 {
   HEIGHT_TO_STATISTIC_RUNES.with(|m| {
     m.borrow()
@@ -179,6 +222,25 @@ pub fn mem_insert_statistic_runes(height: u32, runes: u64) {
 
 pub fn mem_remove_statistic_runes(height: u32) -> Option<u64> {
   HEIGHT_TO_STATISTIC_RUNES.with(|m| m.borrow_mut().remove(&height))
+}
+
+pub fn mem_prune_statistic_runes(height: u32) {
+  HEIGHT_TO_STATISTIC_RUNES.with(|m| {
+    let mut map = m.borrow_mut();
+    // Get all keys less or equal than height
+    let keys_to_remove: Vec<u32> = map
+      .iter()
+      .take_while(|(h, _)| *h <= height)
+      .map(|(h, _)| h)
+      .collect();
+
+    // Remove all entries with those keys
+    for key in keys_to_remove {
+      map.remove(&key);
+    }
+
+    map.remove(&height)
+  });
 }
 
 pub fn mem_length_outpoint_to_rune_balances() -> u64 {
@@ -276,6 +338,20 @@ pub(crate) fn mem_get_change_record(height: u32) -> Option<ChangeRecord> {
 
 pub(crate) fn mem_remove_change_record(height: u32) -> Option<ChangeRecord> {
   HEIGHT_TO_CHANGE_RECORD.with(|m| m.borrow_mut().remove(&height))
+}
+
+pub fn mem_prune_change_record(height: u32) {
+  HEIGHT_TO_CHANGE_RECORD.with(|m| {
+    let mut map = m.borrow_mut();
+    let keys_to_remove: Vec<u32> = map
+      .iter()
+      .take_while(|(h, _)| *h <= height)
+      .map(|(h, _)| h)
+      .collect();
+    for key in keys_to_remove {
+      map.remove(&key);
+    }
+  });
 }
 
 pub fn mem_get_etching(txid: Txid) -> Option<(RuneId, RuneEntry)> {

@@ -1,6 +1,7 @@
 use self::rune_updater::RuneUpdater;
 use super::*;
 use crate::index::reorg::Reorg;
+use crate::logs::{CRITICAL, INFO};
 use crate::timestamp;
 use candid::Principal;
 
@@ -52,7 +53,7 @@ pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Res
                   );
                   return;
                 }
-                Reorg::clear_change_record(height);
+                Reorg::prune_change_record(height);
                 for subscriber in subscribers.iter() {
                   let _ = crate::notifier::notify_new_block(
                     *subscriber,
@@ -104,7 +105,15 @@ pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Res
           );
         }
       }
-      let _ = update_index(network, subscribers);
+      if is_shutting_down() {
+        log!(
+          INFO,
+          "shutting down index thread, skipping update at height {}",
+          height
+        );
+      } else {
+        let _ = update_index(network, subscribers);
+      }
     });
   });
 
@@ -120,24 +129,28 @@ async fn index_block(height: u32, block: BlockData) -> Result<()> {
     block.txdata.len()
   );
 
-  // Log statistics every 200 blocks
-  if height % 200 == 0 {
+  let runes = crate::index::mem_statistic_runes();
+  let reserved_runes = crate::index::mem_statistic_reserved_runes();
+
+  if height % 10 == 0 {
     log!(
       INFO,
       "Index statistics at height {}: latest_block: {:?}, reserved_runes: {}, runes: {}, rune_to_rune_id: {}, rune_entry: {}, transaction_id_to_rune: {}, outpoint_to_rune_balances: {}, outpoint_to_height: {}",
       height,
       crate::index::mem_latest_block(),
-      crate::index::mem_statistic_reserved_runes(),
-      crate::index::mem_statistic_runes(),
+      reserved_runes,
+      runes,
       crate::index::mem_length_rune_to_rune_id(),
       crate::index::mem_length_rune_id_to_rune_entry(),
       crate::index::mem_length_transaction_id_to_rune(),
       crate::index::mem_length_outpoint_to_rune_balances(),
-      crate::index::mem_length_outpoint_to_height()
+      crate::index::mem_length_outpoint_to_height(),
     );
   }
 
-  let runes = crate::index::mem_statistic_runes();
+  // init statistic runes/reserved_runes for new height
+  crate::index::mem_insert_statistic_runes(height, runes);
+  crate::index::mem_insert_statistic_reserved_runes(height, reserved_runes);
 
   let mut rune_updater = RuneUpdater {
     block_time: block.header.time,

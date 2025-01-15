@@ -114,6 +114,7 @@ impl Reorg {
             log!(INFO, "removing rune_id: {}", rune_id);
           });
       }
+      crate::index::mem_remove_change_record(h);
       crate::index::mem_remove_statistic_runes(h);
       crate::index::mem_remove_statistic_reserved_runes(h);
       crate::index::mem_remove_block_header(h);
@@ -126,15 +127,12 @@ impl Reorg {
     );
   }
 
-  pub(crate) fn clear_change_record(height: u32) {
-    for h in (height - 32..=height - MAX_RECOVERABLE_REORG_DEPTH).rev() {
-      if let None = crate::index::mem_remove_change_record(h) {
-        break;
-      }
-      log!(INFO, "clearing change record at height {h}");
-      crate::index::mem_remove_statistic_runes(h);
-      crate::index::mem_remove_statistic_reserved_runes(h);
-      crate::index::mem_remove_block_header(h);
-    }
+  pub(crate) fn prune_change_record(height: u32) {
+    let h = height - MAX_RECOVERABLE_REORG_DEPTH;
+    log!(INFO, "clearing change record at height {h}");
+    crate::index::mem_prune_change_record(h);
+    crate::index::mem_prune_statistic_runes(h);
+    crate::index::mem_prune_statistic_reserved_runes(h);
+    crate::index::mem_prune_block_header(h);
   }
 }
