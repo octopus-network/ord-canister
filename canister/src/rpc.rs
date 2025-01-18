@@ -6,7 +6,6 @@ use bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc_json::{GetBlockHeaderResult, GetRawTransactionResult};
 use ic_canister_log::log;
 use ic_cdk::api::management_canister::http_request::*;
-use runes_indexer_interface::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -218,13 +217,7 @@ where
     endpoint,
     total_cycles
   );
-  let reply: Reply<R> = serde_json::from_slice(&buf).map_err(|e| {
-    OrdError::Rpc(RpcError::Decode(
-      endpoint.to_string(),
-      url.to_string(),
-      e.to_string(),
-    ))
-  })?;
+  let reply: Reply<R> = serde_json::from_slice(&buf)?;
   if reply.error.is_some() {
     return Err(anyhow!(
       "rpc error: {:?} => {}",

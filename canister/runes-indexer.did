@@ -4,32 +4,20 @@ type Config = record {
   network : BitcoinNetwork;
   subscribers : vec principal;
 };
-type MintError = variant { Cap : nat; End : nat64; Start : nat64; Unmintable };
-type OrdError = variant {
-  Rpc : RpcError;
-  Overflow;
-  Params : text;
-  NotEnoughConfirmations;
-  RuneNotFound;
-  Index : MintError;
-  WrongBlockHash : text;
-  Unrecoverable;
-  OutPointNotFound;
-  Recoverable : record { height : nat32; depth : nat32 };
-  WrongBlockMerkleRoot : text;
-};
-type OrdEtching = record { confirmations : nat32; rune_id : text };
-type OrdRuneBalance = record {
-  id : text;
+type Error = variant { MaxOutpointsExceeded };
+type GetEtchingResult = record { confirmations : nat32; rune_id : text };
+type Result = variant { Ok : vec opt vec RuneBalance; Err : Error };
+type RuneBalance = record {
   confirmations : nat32;
   divisibility : nat8;
   amount : nat;
+  rune_id : text;
   symbol : opt text;
 };
-type OrdRuneEntry = record {
+type RuneEntry = record {
   confirmations : nat32;
   mints : nat;
-  terms : opt OrdTerms;
+  terms : opt Terms;
   etching : text;
   turbo : bool;
   premine : nat;
@@ -39,36 +27,24 @@ type OrdRuneEntry = record {
   timestamp : nat64;
   block : nat64;
   burned : nat;
+  rune_id : text;
   symbol : opt text;
 };
-type OrdTerms = record {
+type RunesIndexerArgs = variant { Upgrade : opt UpgradeArgs; Init : Config };
+type Terms = record {
   cap : opt nat;
   height : record { opt nat64; opt nat64 };
   offset : record { opt nat64; opt nat64 };
   amount : opt nat;
 };
-type Result = variant { Ok : opt OrdEtching; Err : OrdError };
-type Result_1 = variant { Ok : record { nat32; text }; Err : OrdError };
-type Result_2 = variant { Ok : OrdRuneEntry; Err : OrdError };
-type Result_3 = variant { Ok : vec opt vec OrdRuneBalance; Err : OrdError };
-type Result_4 = variant { Ok; Err : text };
-type RpcError = variant {
-  Io : record { text; text; text };
-  Endpoint : record { text; text; text };
-  Decode : record { text; text; text };
-};
-type RunesIndexerArgs = variant { Upgrade : opt UpgradeArgs; Init : Config };
 type UpgradeArgs = record {
   bitcoin_rpc_url : opt text;
   subscribers : opt vec principal;
 };
 service : (RunesIndexerArgs) -> {
-  get_etching : (text) -> (Result) query;
-  get_height : () -> (Result_1) query;
-  get_rune_entry_by_rune_id : (text) -> (Result_2) query;
-  get_subscribers : () -> (vec principal) query;
-  query_runes : (vec text) -> (Result_3) query;
-  set_bitcoin_rpc_url : (text) -> (Result_4);
-  start : () -> (Result_4);
-  stop : () -> (Result_4);
+  get_etching : (text) -> (opt GetEtchingResult) query;
+  get_latest_block : () -> (nat32, text) query;
+  get_rune : (text) -> (opt RuneEntry) query;
+  get_rune_balances_for_outputs : (vec text) -> (Result) query;
+  get_rune_by_id : (text) -> (opt RuneEntry) query;
 }

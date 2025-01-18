@@ -2,11 +2,10 @@
 name = "runes-indexer-interface"
 version = "0.1.0"
 authors = ["kachinsky@oct.network"]
-repository = "https://github.com/octopus-network/ord-canister"
+repository = "https://github.com/octopus-network/runes-indexer"
 license = "MIT"
 edition = "2021"
 
 [dependencies]
 candid = "0.10"
-thiserror = "1"
 serde = { version = "1.0", features = ["derive"] }

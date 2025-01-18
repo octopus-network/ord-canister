@@ -9,10 +9,7 @@ pub struct Cli {
 
 #[derive(Debug, clap::Args)]
 pub struct RunCmd {
-  #[arg(
-    long,
-    help = "The target host to where forwarding requests."
-  )]
+  #[arg(long, help = "The target host to where forwarding requests.")]
   pub forward: String,
   #[arg(
     long,

@@ -22,7 +22,6 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use ordinals::{
   Artifact, Edict, Etching, Height, Pile, Rune, RuneId, Runestone, SatPoint, SpacedRune, Terms,
 };
-use runes_indexer_interface::MintError;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -284,7 +283,7 @@ pub fn mem_length_rune_to_rune_id() -> u64 {
   RUNE_TO_RUNE_ID.with(|m| m.borrow().len())
 }
 
-pub(crate) fn mem_get_rune_to_rune_id(rune: u128) -> Option<RuneIdValue> {
+pub fn mem_get_rune_to_rune_id(rune: u128) -> Option<RuneIdValue> {
   RUNE_TO_RUNE_ID.with(|m| m.borrow().get(&rune))
 }
 

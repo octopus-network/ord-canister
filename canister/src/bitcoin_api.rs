@@ -2,7 +2,6 @@ use anyhow::anyhow;
 use bitcoin::{block::Header, BlockHash};
 use candid::{self, CandidType, Deserialize, Principal};
 use ic_cdk::api::{call::RejectionCode, management_canister::bitcoin::BitcoinNetwork};
-use runes_indexer_interface::OrdError;
 
 pub type Height = u32;
 pub type BlockHeader = Vec<u8>;
@@ -74,13 +73,11 @@ pub async fn get_block_hash(
         .0
         .block_headers
         .first()
-        .ok_or_else(|| OrdError::Params(format!("failed to get header at height: {}", height)))?;
+        .ok_or_else(|| anyhow!("failed to get header at height: {}", height))?;
 
       let header =
         <Header as bitcoin::consensus::Decodable>::consensus_decode(&mut header_bytes.as_slice())
-          .map_err(|_| {
-          OrdError::Params(format!("failed to decode block hash at height: {}", height))
-        })?;
+          .map_err(|_| anyhow!("failed to decode block hash at height: {}", height))?;
 
       Ok(Some(header.block_hash()))
     }

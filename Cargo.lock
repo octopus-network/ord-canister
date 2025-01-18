@@ -1405,7 +1405,6 @@ version = "0.1.0"
 dependencies = [
  "candid",
  "serde",
- "thiserror 1.0.61",
 ]
 
 [[package]]

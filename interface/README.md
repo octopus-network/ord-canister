@@ -1,13 +1,3 @@
-# The data types for accessing ord-canister
+# runes-indexer-interface
 
-Currently, the Ord canister has been deployed on mainnet: [`o25oi-jaaaa-aaaal-ajj6a-cai`](https://dashboard.internetcomputer.org/canister/o25oi-jaaaa-aaaal-ajj6a-cai) and ready to serve.
-
-Rust usage:
-
-```
-use runes_indexer_interface::*;
-
-let indexer = Principal::from_text("o25oi-jaaaa-aaaal-ajj6a-cai").unwrap();
-let (result,): (Result<Vec<RuneBalance>, OrdError>,) = ic_cdk::call(indexer, "get_runes_by_utxo", ("ee8345590d85047c66a0e131153e5202b9bda3990bd07decd9df0a9bb2589348", 0)).await.unwrap();
-```
-
+This crates contains Rust types needed to interact with the [Runes Indexer](https://github.com/octopus-network/runes-indexer) API on the Internet Computer.

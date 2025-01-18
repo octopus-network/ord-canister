@@ -6,13 +6,94 @@ use ic_cdk_macros::{init, post_upgrade, query, update};
 use runes_indexer::config::RunesIndexerArgs;
 use runes_indexer::index::entry::Entry;
 use runes_indexer::logs::{CRITICAL, INFO, WARNING};
-use runes_indexer_interface::{OrdError, OrdEtching, OrdRuneBalance, OrdRuneEntry, OrdTerms};
+use runes_indexer_interface::{Error, GetEtchingResult, RuneBalance, RuneEntry, Terms};
 use std::str::FromStr;
 
 #[query]
-pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalance>>>, OrdError> {
+#[candid_method(query)]
+pub fn get_latest_block() -> (u32, String) {
+  let (height, hash) = runes_indexer::index::mem_latest_block().expect("No block found");
+  (height, hash.to_string())
+}
+
+#[query]
+#[candid_method(query)]
+pub fn get_etching(txid: String) -> Option<GetEtchingResult> {
+  let txid = Txid::from_str(&txid).ok()?;
+  let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
+
+  runes_indexer::index::mem_get_etching(txid).map(|(id, entry)| GetEtchingResult {
+    confirmations: cur_height - entry.block as u32 + 1,
+    rune_id: id.to_string(),
+  })
+}
+
+#[query]
+#[candid_method(query)]
+pub fn get_rune(str_spaced_rune: String) -> Option<RuneEntry> {
+  let spaced_rune = ordinals::SpacedRune::from_str(&str_spaced_rune).ok()?;
+  let rune_id_value = runes_indexer::index::mem_get_rune_to_rune_id(spaced_rune.rune.0)?;
+  let rune_entry = runes_indexer::index::mem_get_rune_id_to_rune_entry(rune_id_value)?;
+  let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
+  Some(RuneEntry {
+    confirmations: cur_height - rune_entry.block as u32 + 1,
+    rune_id: ordinals::RuneId::load(rune_id_value).to_string(),
+    block: rune_entry.block,
+    burned: rune_entry.burned,
+    divisibility: rune_entry.divisibility,
+    etching: rune_entry.etching.to_string(),
+    mints: rune_entry.mints,
+    number: rune_entry.number,
+    premine: rune_entry.premine,
+    spaced_rune: rune_entry.spaced_rune.to_string(),
+    symbol: rune_entry.symbol.map(|c| c.to_string()),
+    terms: rune_entry.terms.map(|t| Terms {
+      amount: t.amount,
+      cap: t.cap,
+      height: t.height,
+      offset: t.offset,
+    }),
+    timestamp: rune_entry.timestamp,
+    turbo: rune_entry.turbo,
+  })
+}
+
+#[query]
+#[candid_method(query)]
+pub fn get_rune_by_id(str_rune_id: String) -> Option<RuneEntry> {
+  let rune_id = ordinals::RuneId::from_str(&str_rune_id).ok()?;
+  let rune_entry = runes_indexer::index::mem_get_rune_id_to_rune_entry(rune_id.store())?;
+  let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
+  Some(RuneEntry {
+    confirmations: cur_height - rune_entry.block as u32 + 1,
+    rune_id: str_rune_id,
+    block: rune_entry.block,
+    burned: rune_entry.burned,
+    divisibility: rune_entry.divisibility,
+    etching: rune_entry.etching.to_string(),
+    mints: rune_entry.mints,
+    number: rune_entry.number,
+    premine: rune_entry.premine,
+    spaced_rune: rune_entry.spaced_rune.to_string(),
+    symbol: rune_entry.symbol.map(|c| c.to_string()),
+    terms: rune_entry.terms.map(|t| Terms {
+      amount: t.amount,
+      cap: t.cap,
+      height: t.height,
+      offset: t.offset,
+    }),
+    timestamp: rune_entry.timestamp,
+    turbo: rune_entry.turbo,
+  })
+}
+
+#[query]
+#[candid_method(query)]
+pub fn get_rune_balances_for_outputs(
+  outpoints: Vec<String>,
+) -> Result<Vec<Option<Vec<RuneBalance>>>, Error> {
   if outpoints.len() > 64 {
-    return Err(OrdError::Params("Too many outpoints".to_string()));
+    return Err(Error::MaxOutpointsExceeded);
   }
 
   let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
@@ -37,15 +118,19 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalan
           let rune_entry =
             runes_indexer::index::mem_get_rune_id_to_rune_entry(rune_balance.rune_id.store());
           if let Some(rune_entry) = rune_entry {
-            outpoint_balances.push(OrdRuneBalance {
-              id: rune_balance.rune_id.to_string(),
+            outpoint_balances.push(RuneBalance {
               confirmations,
+              rune_id: rune_balance.rune_id.to_string(),
               amount: rune_balance.balance,
               divisibility: rune_entry.divisibility,
               symbol: rune_entry.symbol.map(|c| c.to_string()),
             });
           } else {
-            log!(CRITICAL, "Rune not found for outpoint {}", str_outpoint);
+            log!(
+              CRITICAL,
+              "Rune not found for rune_id {}",
+              rune_balance.rune_id.to_string()
+            );
           }
         }
         piles.push(Some(outpoint_balances));
@@ -66,53 +151,6 @@ pub fn query_runes(outpoints: Vec<String>) -> Result<Vec<Option<Vec<OrdRuneBalan
   Ok(piles)
 }
 
-#[query]
-pub fn get_etching(txid: String) -> Result<Option<OrdEtching>, OrdError> {
-  let txid = Txid::from_str(&txid).map_err(|e| OrdError::Params(e.to_string()))?;
-  let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
-  Ok(
-    runes_indexer::index::mem_get_etching(txid).map(|(id, entry)| OrdEtching {
-      rune_id: id.to_string(),
-      confirmations: cur_height - entry.block as u32 + 1,
-    }),
-  )
-}
-
-#[query]
-pub fn get_rune_entry_by_rune_id(rune_id: String) -> Result<OrdRuneEntry, OrdError> {
-  let rune_id =
-    ordinals::RuneId::from_str(&rune_id).map_err(|e| OrdError::Params(e.to_string()))?;
-  let rune_entry = runes_indexer::index::mem_get_rune_id_to_rune_entry(rune_id.store())
-    .ok_or(OrdError::RuneNotFound)?;
-  let cur_height = runes_indexer::index::mem_latest_block_height().expect("No block height found");
-  Ok(OrdRuneEntry {
-    confirmations: cur_height - rune_entry.block as u32 + 1,
-    block: rune_entry.block,
-    burned: rune_entry.burned,
-    divisibility: rune_entry.divisibility,
-    etching: rune_entry.etching.to_string(),
-    mints: rune_entry.mints,
-    number: rune_entry.number,
-    premine: rune_entry.premine,
-    spaced_rune: rune_entry.spaced_rune.to_string(),
-    symbol: rune_entry.symbol.map(|c| c.to_string()),
-    terms: rune_entry.terms.map(|t| OrdTerms {
-      amount: t.amount,
-      cap: t.cap,
-      height: t.height,
-      offset: t.offset,
-    }),
-    timestamp: rune_entry.timestamp,
-    turbo: rune_entry.turbo,
-  })
-}
-
-#[query]
-pub fn get_height() -> Result<(u32, String), OrdError> {
-  let (height, hash) = runes_indexer::index::mem_latest_block().expect("No block found");
-  Ok((height, hash.to_string()))
-}
-
 #[query(hidden = true)]
 pub fn rpc_transform(args: TransformArgs) -> HttpResponse {
   let headers = args
@@ -128,7 +166,7 @@ pub fn rpc_transform(args: TransformArgs) -> HttpResponse {
   }
 }
 
-#[update]
+#[update(hidden = true)]
 pub fn start() -> Result<(), String> {
   let caller = ic_cdk::api::caller();
   if !ic_cdk::api::is_controller(&caller) {
@@ -142,7 +180,7 @@ pub fn start() -> Result<(), String> {
   Ok(())
 }
 
-#[update]
+#[update(hidden = true)]
 pub fn stop() -> Result<(), String> {
   let caller = ic_cdk::api::caller();
   if !ic_cdk::api::is_controller(&caller) {
@@ -155,7 +193,7 @@ pub fn stop() -> Result<(), String> {
   Ok(())
 }
 
-#[update]
+#[update(hidden = true)]
 pub fn set_bitcoin_rpc_url(url: String) -> Result<(), String> {
   let caller = ic_cdk::api::caller();
   if !ic_cdk::api::is_controller(&caller) {
@@ -168,7 +206,7 @@ pub fn set_bitcoin_rpc_url(url: String) -> Result<(), String> {
   Ok(())
 }
 
-#[query]
+#[query(hidden = true)]
 pub fn get_subscribers() -> Vec<Principal> {
   runes_indexer::index::mem_get_config().subscribers
 }
