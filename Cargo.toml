@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["btc-rpc-proxy", "canister", "interface"]
+members = ["bitcoin-rpc-proxy", "canister", "interface"]
 
 [profile.release]
 lto = true

@@ -11,7 +11,7 @@ pub struct Cli {
 pub struct RunCmd {
   #[arg(
     long,
-    help = "The target host to where forwarding requests. MUST BE HTTPS"
+    help = "The target host to where forwarding requests."
   )]
   pub forward: String,
   #[arg(
@@ -27,4 +27,10 @@ pub struct RunCmd {
     help = "Binding port, default 8000"
   )]
   pub port: u16,
+  #[arg(
+    long,
+    short = 'u',
+    help = "Server user and password (format: user:password)"
+  )]
+  pub user: Option<String>,
 }

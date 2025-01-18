@@ -2,6 +2,7 @@ mod cache;
 mod cli;
 mod proxy;
 
+use base64;
 use cache::LruCache;
 use clap::Parser;
 use http_body_util::BodyExt;
@@ -9,7 +10,10 @@ use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{header::RANGE, Request, Response, StatusCode};
+use hyper::{
+  header::{HeaderValue, RANGE},
+  Request, Response, StatusCode,
+};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -41,9 +45,17 @@ fn try_match_cache_header(req: &Request<Incoming>) -> Option<String> {
 
 async fn forward(
   target: impl AsRef<str>,
-  req: Request<Incoming>,
+  user: Option<String>,
+  mut req: Request<Incoming>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
   let if_range = try_match_range_header(&req);
+  if let Some(user) = user {
+    let base64_credentials = base64::encode(user);
+    req.headers_mut().insert(
+      "Authorization",
+      HeaderValue::from_str(&format!("Basic {}", base64_credentials)).unwrap(),
+    );
+  }
   match proxy::call(target.as_ref(), req).await {
     Ok(response) => match if_range {
       Some((start, end)) => {
@@ -98,11 +110,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let args = cli::Cli::parse();
   let addr = SocketAddr::from((args.run.addr, args.run.port));
   let target = args.run.forward;
+  let user = args.run.user;
   let listener = TcpListener::bind(addr).await?;
   let cache = Arc::new(cache::MemoryCache::<Response<Full<Bytes>>>::new(1000));
   loop {
     let cache = cache.clone();
     let target = target.clone();
+    let user = user.clone();
     let (stream, _) = listener.accept().await?;
     let io = TokioIo::new(stream);
     tokio::task::spawn(async move {
@@ -117,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             None => {}
           }
         }
-        let rsp = forward(&target, req).await;
+        let rsp = forward(&target, user.clone(), req).await;
         if let Ok(ref response) = rsp {
           if let Some(key) = key {
             println!("Cache created {}", key);

@@ -137,7 +137,7 @@ pub fn start() -> Result<(), String> {
 
   runes_indexer::index::cancel_shutdown();
   let config = runes_indexer::index::mem_get_config();
-  let _ = runes_indexer::index::updater::update_index(config.network, config.subcribers);
+  let _ = runes_indexer::index::updater::update_index(config.network, config.subscribers);
 
   Ok(())
 }
@@ -170,7 +170,7 @@ pub fn set_bitcoin_rpc_url(url: String) -> Result<(), String> {
 
 #[query]
 pub fn get_subscribers() -> Vec<Principal> {
-  runes_indexer::index::mem_get_config().subcribers
+  runes_indexer::index::mem_get_config().subscribers
 }
 
 #[query(hidden = true)]
@@ -208,8 +208,9 @@ fn post_upgrade(runes_indexer_args: Option<RunesIndexerArgs>) {
       if let Some(bitcoin_rpc_url) = upgrade_args.bitcoin_rpc_url {
         config.bitcoin_rpc_url = bitcoin_rpc_url;
       }
-      if let Some(subscribers) = upgrade_args.subcribers {
-        config.subcribers = subscribers;
+      if let Some(subscribers) = upgrade_args.subscribers {
+        config.subscribers = subscribers;
+        log!(INFO, "subscribers updated: {:?}", config.subscribers);
       }
       runes_indexer::index::mem_set_config(config).unwrap();
     }

@@ -1,8 +1,8 @@
 FROM rust:1.83
 
-WORKDIR /usr/src/btc-rpc-proxy
+WORKDIR /usr/src/bitcoin-rpc-proxy
 COPY . .
 
-RUN cargo install --path btc-rpc-proxy/
+RUN cargo install --path bitcoin-rpc-proxy/
 
-CMD ["/usr/local/cargo/bin/btc-rpc-proxy", "--forward", "https://btc.nownodes.io"]
+CMD ["/usr/local/cargo/bin/bitcoin-rpc-proxy", "--forward", "https://btc.nownodes.io"]

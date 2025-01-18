@@ -1,10 +1,10 @@
 [package]
-name = "btc-rpc-proxy"
+name = "bitcoin-rpc-proxy"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "btc-rpc-proxy"
+name = "bitcoin-rpc-proxy"
 path = "src/main.rs"
 
 [dependencies]
@@ -20,3 +20,4 @@ http-body-util = "0.1.0"
 clap = { version = "4.1.7", features = ["derive"] }
 linked-hash-map = "0.5.6"
 async-trait = "0.1.81"
+base64 = "0.21"

@@ -130,11 +130,13 @@ impl Reorg {
   }
 
   pub(crate) fn prune_change_record(height: u32) {
-    let h = height - MAX_RECOVERABLE_REORG_DEPTH;
-    log!(INFO, "clearing change record at height {h}");
-    crate::index::mem_prune_change_record(h);
-    crate::index::mem_prune_statistic_runes(h);
-    crate::index::mem_prune_statistic_reserved_runes(h);
-    crate::index::mem_prune_block_header(h);
+    if height >= MAX_RECOVERABLE_REORG_DEPTH {
+      let h = height - MAX_RECOVERABLE_REORG_DEPTH;
+      log!(INFO, "clearing change record at height {h}");
+      crate::index::mem_prune_change_record(h);
+      crate::index::mem_prune_statistic_runes(h);
+      crate::index::mem_prune_statistic_reserved_runes(h);
+      crate::index::mem_prune_block_header(h);
+    }
   }
 }

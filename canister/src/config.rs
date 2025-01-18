@@ -8,7 +8,7 @@ use std::borrow::Cow;
 pub struct Config {
   pub network: BitcoinNetwork,
   pub bitcoin_rpc_url: String,
-  pub subcribers: Vec<Principal>,
+  pub subscribers: Vec<Principal>,
 }
 
 impl Default for Config {
@@ -16,7 +16,7 @@ impl Default for Config {
     Self {
       network: BitcoinNetwork::Regtest,
       bitcoin_rpc_url: "".to_string(),
-      subcribers: vec![],
+      subscribers: vec![],
     }
   }
 }
@@ -47,7 +47,7 @@ impl Storable for Config {
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct UpgradeArgs {
   pub bitcoin_rpc_url: Option<String>,
-  pub subcribers: Option<Vec<Principal>>,
+  pub subscribers: Option<Vec<Principal>>,
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq)]

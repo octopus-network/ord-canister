@@ -346,6 +346,35 @@ pub(crate) async fn get_block_header_info(
   .await
 }
 
+async fn inner_get_block_hash(
+  url: &str,
+  max_response_bytes: u64,
+  subnet_nodes: u64,
+  height: u32,
+) -> Result<BlockHash> {
+  let args: [serde_json::Value; 1] = [(height as u64).into()];
+  let res: BlockHash = make_rpc(
+    url,
+    "getblockhash",
+    args.to_vec(),
+    max_response_bytes,
+    subnet_nodes,
+  )
+  .await?;
+  Ok(res)
+}
+
+pub(crate) async fn get_block_hash(height: u32) -> Result<BlockHash> {
+  let config = crate::index::mem_get_config();
+  inner_get_block_hash(
+    &config.bitcoin_rpc_url,
+    256,
+    config.get_subnet_nodes(),
+    height,
+  )
+  .await
+}
+
 /// Shorthand for converting a variable into a serde_json::Value.
 fn into_json<T>(val: T) -> Result<serde_json::Value>
 where

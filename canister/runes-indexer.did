@@ -1,8 +1,8 @@
 type BitcoinNetwork = variant { mainnet; regtest; testnet };
 type Config = record {
-  subcribers : vec principal;
   bitcoin_rpc_url : text;
   network : BitcoinNetwork;
+  subscribers : vec principal;
 };
 type MintError = variant { Cap : nat; End : nat64; Start : nat64; Unmintable };
 type OrdError = variant {
@@ -59,8 +59,8 @@ type RpcError = variant {
 };
 type RunesIndexerArgs = variant { Upgrade : opt UpgradeArgs; Init : Config };
 type UpgradeArgs = record {
-  subcribers : opt vec principal;
   bitcoin_rpc_url : opt text;
+  subscribers : opt vec principal;
 };
 service : (RunesIndexerArgs) -> {
   get_etching : (text) -> (Result) query;
