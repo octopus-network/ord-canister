@@ -1,5 +1,9 @@
 # Runes Indexer (formerly Ord Canister)
 
+![GitHub License](https://img.shields.io/github/license/octopus-network/runes-indexer)
+![Crates.io Version](https://img.shields.io/crates/v/runes-indexer-interface)
+
+
 An onchain runes indexer on the Internet Computer
 
 ## Overview

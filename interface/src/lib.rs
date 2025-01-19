@@ -1,6 +1,6 @@
 use candid::{CandidType, Deserialize};
 
-#[derive(CandidType, Deserialize)]
+#[derive(Debug, CandidType, Deserialize)]
 pub struct RuneBalance {
   pub confirmations: u32,
   pub rune_id: String,
@@ -9,13 +9,13 @@ pub struct RuneBalance {
   pub symbol: Option<String>,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(Debug, CandidType, Deserialize)]
 pub struct GetEtchingResult {
   pub confirmations: u32,
   pub rune_id: String,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(Debug, CandidType, Deserialize)]
 pub struct Terms {
   pub amount: Option<u128>,
   pub cap: Option<u128>,
@@ -23,7 +23,7 @@ pub struct Terms {
   pub offset: (Option<u64>, Option<u64>),
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(Debug, CandidType, Deserialize)]
 pub struct RuneEntry {
   pub confirmations: u32,
   pub rune_id: String,
@@ -41,7 +41,7 @@ pub struct RuneEntry {
   pub turbo: bool,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(Debug, CandidType, Deserialize)]
 pub enum Error {
   MaxOutpointsExceeded,
 }

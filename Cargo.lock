@@ -232,7 +232,7 @@ checksum = "340e09e8399c7bd8912f495af6aa58bea0c9214773417ffaa8f6460f93aaee56"
 
 [[package]]
 name = "bitcoin-rpc-proxy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1373,7 +1373,7 @@ dependencies = [
 
 [[package]]
 name = "runes-indexer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "runes-indexer-interface"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "candid",
  "serde",
