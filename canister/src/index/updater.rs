@@ -108,6 +108,7 @@ pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Res
             height,
             e
           );
+          return;
         }
       }
       if is_shutting_down() {

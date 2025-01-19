@@ -86,7 +86,7 @@ dfx canister call runes-indexer get_etching '("d66de939cb3ddb4d94f0949612e06e7a8
 ```
 
 ### get_rune
-Retrieves detailed information about a rune using its spaced name.
+Retrieves detailed information about a rune using its spaced rune name.
 
 Type signature:
 ```candid
@@ -131,7 +131,7 @@ dfx canister call runes-indexer get_rune '("HOPE•YOU•GET•RICH")' --ic
 ```
 
 ### get_rune_by_id
-Similar to `get_rune`, but uses the rune_id as identifier instead of the spaced name.
+Similar to `get_rune`, but uses the rune_id as identifier instead of the spaced rune name.
 
 Type signature:
 ```candid

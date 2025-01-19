@@ -1,10 +1,12 @@
 [package]
 name = "runes-indexer-interface"
+description = "Runes Indexer Interface"
 version = "0.1.0"
-authors = ["kachinsky@oct.network"]
+authors = ["kachinsky@oct.network", "julian@oct.network"]
 repository = "https://github.com/octopus-network/runes-indexer"
 license = "MIT"
 edition = "2021"
+readme = "README.md"
 
 [dependencies]
 candid = "0.10"
