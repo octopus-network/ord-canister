@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 lazy_static::lazy_static! {
   static ref ESSENTIAL_HEADERS: std::collections::HashSet<String> = {
     let mut set = std::collections::HashSet::new();
+    set.insert("content-type".to_string());
     set.insert("content-length".to_string());
     set.insert("content-range".to_string());
     set
@@ -50,7 +51,7 @@ struct ErrorMsg {
 /// [start, end] + [start, end] + [start, end] = total
 fn split(end: u64, total: u64, limit: u64) -> (u64, u64) {
   let start = end + 1;
-  let end = if start + limit >= total {
+  let end = if start + limit - 1 >= total {
     total - 1
   } else {
     start + limit - 1
@@ -167,7 +168,7 @@ pub(crate) async fn make_rpc<R>(
 where
   R: for<'a> Deserialize<'a> + std::fmt::Debug,
 {
-  let mut range = (0, max_response_bytes);
+  let mut range = (0, max_response_bytes - 1);
   let mut buf = Vec::<u8>::with_capacity(max_response_bytes as usize);
   let mut total_cycles = 0;
   loop {
