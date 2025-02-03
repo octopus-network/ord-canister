@@ -51,7 +51,7 @@ struct ErrorMsg {
 /// [start, end] + [start, end] + [start, end] = total
 fn split(end: u64, total: u64, limit: u64) -> (u64, u64) {
   let start = end + 1;
-  let end = if start + limit - 1 >= total {
+  let end = if start + limit >= total {
     total - 1
   } else {
     start + limit - 1
