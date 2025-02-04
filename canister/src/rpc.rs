@@ -104,7 +104,7 @@ fn partial_request(
           value: uniq.clone(),
         },
         HttpHeader {
-          name: "x-cloud-trace-context".to_string(),
+          name: "X-Cloud-Trace-Context".to_string(),
           value: uniq.clone(),
         },
         HttpHeader {
@@ -167,7 +167,7 @@ pub(crate) async fn make_rpc<R>(
 where
   R: for<'a> Deserialize<'a> + std::fmt::Debug,
 {
-  let mut range = (0, max_response_bytes);
+  let mut range = (0, max_response_bytes - 1);
   let mut buf = Vec::<u8>::with_capacity(max_response_bytes as usize);
   let mut total_cycles = 0;
   loop {

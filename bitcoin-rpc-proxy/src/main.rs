@@ -28,7 +28,7 @@ fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
       .collect::<Vec<&str>>();
     let start = range[0].parse::<usize>().ok()?;
     let end = range[1].parse::<usize>().ok()?;
-    (end > start).then(|| (start, end))
+    (end >= start).then(|| (start, end))
   } else {
     None
   }
@@ -37,7 +37,7 @@ fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
 fn try_match_cache_header(req: &Request<Incoming>) -> Option<String> {
   req
     .headers()
-    .get("X-Idempotency")
+    .get("Idempotency-Key")
     .map(|v| v.to_str().ok())
     .flatten()
     .map(|key| key.to_string())
@@ -66,7 +66,7 @@ async fn forward(
           .iter()
           .copied()
           .collect::<Vec<u8>>();
-        if body.len() <= end - start {
+        if body.len() <= end - start + 1 {
           Ok(
             Response::builder()
               .status(StatusCode::OK)
@@ -86,6 +86,7 @@ async fn forward(
                 "Content-Range",
                 format!("bytes {}-{}/{}", start, end, body.len()),
               )
+              .header("Content-Length", partial.len().to_string())
               .body(Full::from(Bytes::from(partial)))
               .unwrap(),
           )
