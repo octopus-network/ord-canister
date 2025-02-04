@@ -12,7 +12,6 @@ use sha2::{Digest, Sha256};
 lazy_static::lazy_static! {
   static ref ESSENTIAL_HEADERS: std::collections::HashSet<String> = {
     let mut set = std::collections::HashSet::new();
-    set.insert("content-type".to_string());
     set.insert("content-length".to_string());
     set.insert("content-range".to_string());
     set
@@ -105,7 +104,7 @@ fn partial_request(
           value: uniq.clone(),
         },
         HttpHeader {
-          name: "x-cloud-trace-context".to_string(),
+          name: "X-Cloud-Trace-Context".to_string(),
           value: uniq.clone(),
         },
         HttpHeader {

@@ -37,7 +37,7 @@ fn try_match_range_header(req: &Request<Incoming>) -> Option<(usize, usize)> {
 fn try_match_cache_header(req: &Request<Incoming>) -> Option<String> {
   req
     .headers()
-    .get("X-Idempotency")
+    .get("Idempotency-Key")
     .map(|v| v.to_str().ok())
     .flatten()
     .map(|key| key.to_string())
@@ -74,8 +74,11 @@ async fn forward(
               .unwrap(),
           )
         } else {
-          let new_end = std::cmp::min(end, body.len() - 1);
-          let partial = body[start..=new_end].to_vec();
+          let partial = if end >= body.len() {
+            body[start..].to_vec()
+          } else {
+            body[start..=end].to_vec()
+          };
           Ok(
             Response::builder()
               .status(StatusCode::PARTIAL_CONTENT)
@@ -84,7 +87,6 @@ async fn forward(
                 format!("bytes {}-{}/{}", start, end, body.len()),
               )
               .header("Content-Length", partial.len().to_string())
-              .header("Content-Type", "application/json")
               .body(Full::from(Bytes::from(partial)))
               .unwrap(),
           )
