@@ -74,6 +74,8 @@ fn partial_request(
   let body = serde_json::to_vec(&payload).unwrap();
   let mut hasher = Sha256::new();
   hasher.update(&body);
+  hasher.update(&range.0.to_le_bytes());
+  hasher.update(&range.1.to_le_bytes());
   let uniq: [u8; 32] = hasher.finalize().into();
   let uniq = hex::encode(uniq[0..16].to_vec());
   let cycles = estimate_cycles(
