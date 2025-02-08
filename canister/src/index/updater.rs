@@ -70,7 +70,7 @@ pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Res
                   log!(
                     INFO,
                     "notified subscriber: {:?} with block_height: {:?} block_hash: {:?}",
-                    subscriber,
+                    subscriber.to_text(),
                     height,
                     block_hash
                   );
@@ -102,13 +102,17 @@ pub fn update_index(network: BitcoinNetwork, subscribers: Vec<Principal>) -> Res
         },
         Ok(None) => {}
         Err(e) => {
-          log!(
-            CRITICAL,
-            "failed to get_block_hash at height {}: {:?}",
-            height,
-            e
-          );
-          return;
+          let message = format!("failed to get_block_hash at height {}: {:?}", height, e);
+          let is_new_message = CRITICAL.with_borrow(|sink| {
+            sink.iter().last().map_or(true, |entry| {
+              log!(INFO, "last_message: {:?}", entry.message);
+              entry.message != message
+            })
+          });
+
+          if is_new_message {
+            log!(CRITICAL, "{}", message);
+          }
         }
       }
       if is_shutting_down() {
