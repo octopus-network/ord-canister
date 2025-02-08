@@ -16,7 +16,7 @@ Runes Indexer is a canister deployed on the [IC](https://internetcomputer.org/) 
 
 ## Repository Components
 
-The repository consists of three main components:
+The repository consists of two main components:
 
 ### canister
 The core implementation of the runes indexer that:
@@ -28,11 +28,6 @@ The core implementation of the runes indexer that:
 
 ### interface
 Provides Rust type definitions for interacting with the Runes Indexer canister. These types enable both Rust applications and other canisters to handle API responses in a type-safe manner.
-
-### bitcoin-rpc-proxy
-Due to Bitcoin RPC `getblocks` responses exceeding the 2MB `max_response_bytes` limit of HTTPS outcalls, this component:
-- Implements [Range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests)
-- Provides a wrapper for Bitcoin RPC to support range requests
 
 ## API Reference
 
